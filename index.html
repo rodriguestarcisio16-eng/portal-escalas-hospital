@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#123b36" />
+  <title>Portal de Escalas | Hospital</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="brand-panel">
+      <div class="brand-mark">HE</div>
+      <p class="eyebrow">PORTAL INSTITUCIONAL</p>
+      <h1>Gestão de<br><span>Escalas</span></h1>
+      <p class="brand-copy">Acesso seguro às escalas de serviço e ferramentas de gestão da equipe.</p>
+      <div class="brand-footer">UTI Adulto · Unidade Semi-Intensiva</div>
+    </section>
+
+    <section class="content-panel">
+      <div class="mobile-brand"><span class="brand-mark small">HE</span><span>PORTAL DE ESCALAS</span></div>
+
+      <section id="login-screen" class="auth-card">
+        <p class="eyebrow dark">BEM-VINDO(A)</p>
+        <h2>Acesse sua conta</h2>
+        <p class="muted">Entre com seu MASP e sua senha.</p>
+        <form id="login-form">
+          <label for="masp">MASP</label>
+          <input id="masp" name="masp" inputmode="numeric" autocomplete="username" maxlength="20" placeholder="Digite seu MASP" required />
+          <label for="password">Senha</label>
+          <div class="password-wrap">
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Digite sua senha" required />
+            <button class="toggle-password" type="button" data-toggle="password" aria-label="Mostrar senha">◉</button>
+          </div>
+          <p id="login-error" class="error" role="alert"></p>
+          <p id="login-info" class="info-message" role="status"></p>
+          <button id="login-submit" class="primary-btn" type="submit">Entrar <span>→</span></button>
+        </form>
+        <div class="help-note"><span class="info-dot">i</span> No primeiro acesso, utilize a senha provisória fornecida pela administração. A troca será obrigatória.</div>
+        <p class="support-note">Problemas com o acesso? Procure o administrador da sua unidade.</p>
+      </section>
+
+      <section id="change-screen" class="auth-card hidden">
+        <p class="eyebrow dark">PRIMEIRO ACESSO</p>
+        <h2>Crie sua nova senha</h2>
+        <p class="muted">Substitua a senha provisória antes de continuar.</p>
+        <form id="change-form">
+          <label for="new-password">Nova senha</label>
+          <div class="password-wrap">
+            <input id="new-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required placeholder="Mínimo de 12 caracteres" />
+            <button class="toggle-password" type="button" data-toggle="new-password" aria-label="Mostrar senha">◉</button>
+          </div>
+          <label for="confirm-password">Confirme a nova senha</label>
+          <div class="password-wrap">
+            <input id="confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required placeholder="Digite novamente" />
+            <button class="toggle-password" type="button" data-toggle="confirm-password" aria-label="Mostrar senha">◉</button>
+          </div>
+          <p class="password-hint">Use pelo menos 12 caracteres. A senha não pode ser igual ao MASP e deve ter até 72 bytes.</p>
+          <p id="change-error" class="error" role="alert"></p>
+          <button id="change-submit" class="primary-btn" type="submit">Salvar nova senha <span>→</span></button>
+        </form>
+      </section>
+
+      <section id="dashboard-screen" class="dashboard hidden">
+        <div class="dashboard-top">
+          <div>
+            <p class="eyebrow dark">ÁREA DO USUÁRIO</p>
+            <h2 id="dashboard-title">Painel</h2>
+            <p id="welcome-text" class="muted"></p>
+          </div>
+          <button id="logout" class="secondary-btn" type="button">Sair</button>
+        </div>
+        <div id="admin-content" class="hidden">
+          <div class="notice"><b>Autenticação conectada.</b><br>Seu perfil administrativo foi reconhecido. Os módulos de gestão serão liberados após a validação das permissões, unidades e fluxos de trabalho.</div>
+          <div class="action-grid">
+            <article class="action-card"><span class="action-icon">▦</span><h3>Escalas</h3><p>Consultar, revisar e publicar escalas.</p><span class="card-link">Módulo em implantação</span></article>
+            <article class="action-card"><span class="action-icon">♙</span><h3>Profissionais</h3><p>Gerenciar cadastros e permissões.</p><span class="card-link">Módulo em implantação</span></article>
+            <article class="action-card"><span class="action-icon">✓</span><h3>Conferências</h3><p>Visualizar conflitos e postos descobertos.</p><span class="card-link">Módulo em implantação</span></article>
+            <article class="action-card"><span class="action-icon">↶</span><h3>Histórico</h3><p>Acompanhar alterações e versões.</p><span class="card-link">Módulo em implantação</span></article>
+          </div>
+        </div>
+        <div id="tech-content" class="hidden">
+          <div class="notice"><b>Bem-vindo(a) ao Portal de Escalas.</b><br>Seu acesso foi autenticado. As escalas publicadas aparecerão aqui após a validação final das permissões por unidade.</div>
+          <div class="action-grid single">
+            <article class="action-card"><span class="action-icon">▤</span><h3>Minhas escalas</h3><p>Consulte as escalas publicadas para sua unidade e turno.</p><span class="card-link">Módulo em implantação</span></article>
+          </div>
+        </div>
+      </section>
+      <footer class="page-footer">Acesso restrito a profissionais autorizados · Portal de Escalas</footer>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
