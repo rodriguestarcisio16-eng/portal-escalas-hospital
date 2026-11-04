@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js";
+import { initializeAdminWorkspace } from "./admin.js?v=20261104-6";
 
 const $ = (id) => document.getElementById(id);
 const screenIds = ["login-screen", "change-screen", "dashboard-screen"];
@@ -26,7 +27,16 @@ function isConfigured() {
     SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_");
 }
 
-function showProfile(profile) {
+async function showProfile(profile) {
+  // A primeira versão operacional é restrita à superadmin.
+  if (profile.role !== "superadmin") {
+    await supabase.auth.signOut({ scope: "local" });
+    currentProfile = null;
+    show("login-screen");
+    showLoginMessage("Nesta primeira versão, o acesso ao módulo de escalas está restrito à superadmin.");
+    return;
+  }
+
   currentProfile = profile;
   if (profile.must_change_password) {
     $("change-error").textContent = "";
@@ -39,17 +49,15 @@ function showProfile(profile) {
 
 function renderDashboard() {
   show("dashboard-screen");
-  const role = currentProfile?.role;
-  const name = currentProfile?.nome || "profissional";
-  const isAdmin = role === "superadmin" || role === "admin";
-  $("dashboard-title").textContent = role === "superadmin"
-    ? "Painel da superadmin"
-    : role === "admin"
-      ? "Painel administrativo"
-      : "Área do profissional";
-  $("welcome-text").textContent = `Olá, ${name}.`;
-  $("admin-content").classList.toggle("hidden", !isAdmin);
-  $("tech-content").classList.toggle("hidden", isAdmin);
+  const name = currentProfile?.nome || "superadmin";
+  $("dashboard-title").textContent = "Painel da superadmin";
+  $("welcome-text").textContent = `Olá, ${name}. Aqui você administra as escalas das duas unidades.`;
+  $("admin-content").classList.remove("hidden");
+  $("tech-content").classList.add("hidden");
+  $("dashboard-screen").classList.add("wide-dashboard");
+  initializeAdminWorkspace(supabase).catch((error) => {
+    console.error("Falha ao iniciar módulo administrativo:", error);
+  });
 }
 
 async function fetchOwnProfile(userId) {
@@ -79,7 +87,7 @@ async function restoreSession() {
 
   try {
     const profile = await fetchOwnProfile(userData.user.id);
-    showProfile(profile);
+    await showProfile(profile);
   } catch (error) {
     show("login-screen");
     showLoginMessage(error.message);
@@ -115,7 +123,6 @@ async function loginWithMasp(masp, password) {
   });
   if (sessionError) throw new Error("Não foi possível iniciar a sessão. Tente novamente.");
 
-  // Busca o perfil com a sessão recém-autenticada; a política RLS permite apenas o próprio perfil.
   const profile = await fetchOwnProfile(result.profile.id);
   return profile;
 }
@@ -141,7 +148,7 @@ $("login-form").addEventListener("submit", async (event) => {
   try {
     const profile = await loginWithMasp(masp, password);
     $("login-form").reset();
-    showProfile(profile);
+    await showProfile(profile);
   } catch (error) {
     $("login-error").textContent = error.message || "Não foi possível realizar o login.";
   } finally {
