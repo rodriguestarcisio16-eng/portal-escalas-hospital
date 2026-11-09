@@ -319,8 +319,7 @@ async function saveStaff(event) {
     return notify("A meta mensal deve ser um número inteiro entre 0 e 31.", "error");
   }
   const markers = [...document.querySelectorAll("[data-day-marker]")]
-    .map((input) => ({ work_date: input.dataset.dayMarker, marker: input.value }))
-    .filter((item) => item.marker !== "");
+    .map((input) => ({ work_date: input.dataset.dayMarker, marker: input.value }));
 
   button.disabled = true;
   button.textContent = "Salvando...";
