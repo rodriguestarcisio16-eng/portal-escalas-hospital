@@ -219,3 +219,13 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
 .staff-form-actions .secondary-btn{font-size:10px;padding:9px 12px}
 @media(max-width:1000px){.staff-manager-layout{grid-template-columns:1fr}.staff-directory-list{max-height:280px}.staff-directory-item{max-width:none}}
 @media(max-width:650px){.staff-manager-heading{flex-direction:column}.staff-manager-heading .primary-btn{width:100%}.staff-form-grid-three{grid-template-columns:repeat(2,minmax(0,1fr))}.staff-form-grid-three .staff-span-two{grid-column:1/-1}.staff-calendar{grid-template-columns:repeat(4,minmax(0,1fr))}.staff-assignment-grid{grid-template-columns:1fr}.staff-form-actions{flex-direction:column-reverse}.staff-form-actions button{width:100%}}
+
+.saved-proposal-history{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
+.saved-proposal-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.saved-proposal-heading b{font:800 11px Manrope;color:var(--ink)}
+.saved-proposal-list{display:grid;gap:7px}
+.saved-proposal-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fbfcfb}
+.saved-proposal-item>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.saved-proposal-item b{font:700 10px Manrope;color:var(--ink)}
+.saved-proposal-item small{font-size:9px;color:var(--muted);line-height:1.4}
+.saved-proposal-item .status-chip{align-self:flex-start}
