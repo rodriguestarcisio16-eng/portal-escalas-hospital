@@ -79,7 +79,7 @@ function renderManagementShell() {
             <div class="staff-form-grid staff-form-grid-three">
               <div class="field-group"><label for="staff-masp">MASP *</label><input id="staff-masp" inputmode="numeric" maxlength="20" placeholder="Somente números" required /></div>
               <div class="field-group staff-span-two"><label for="staff-name">Nome completo *</label><input id="staff-name" maxlength="180" required placeholder="Nome do profissional" /></div>
-              <div class="field-group"><label for="staff-category">Categoria *</label><select id="staff-category" required><option value="TE">TE</option><option value="TEC">TEC</option><option value="AUX">AUX</option><option value="AUX.">AUX.</option></select></div>
+              <div class="field-group"><label for="staff-category">Categoria *</label><input id="staff-category" list="staff-category-options" maxlength="30" required placeholder="TE, TEC, AUX..." /><datalist id="staff-category-options"><option value="TE"><option value="TEC"><option value="AUX"><option value="AUX."></datalist></div>
               <div class="field-group"><label for="staff-weekly-hours">Carga contratual semanal</label><select id="staff-weekly-hours"><option value="">Não informada</option><option value="20">20 horas</option><option value="30">30 horas</option><option value="40">40 horas</option></select></div>
               <div class="field-group staff-check-field"><label><input id="staff-contract-marker" type="checkbox" /> Marcador CA</label><label><input id="staff-active" type="checkbox" checked /> Cadastro ativo</label></div>
             </div>
@@ -98,8 +98,9 @@ function renderManagementShell() {
             <div class="staff-form-section">
               <div class="staff-form-section-head"><h6>Escala mensal e disponibilidade</h6><small>Escolha a competência e o turno. O calendário é preenchido manualmente.</small></div>
               <div class="staff-form-grid staff-form-grid-three">
-                <div class="field-group staff-span-two"><label for="staff-schedule">Competência / unidade / turno</label><select id="staff-schedule"></select></div>
-                <div class="field-group"><label for="staff-expected-shifts">Plantões previstos no mês</label><input id="staff-expected-shifts" type="number" min="0" max="31" step="1" placeholder="Não informado" /></div>
+                <div class="field-group"><label for="staff-schedule">Competência / unidade / turno</label><select id="staff-schedule"></select></div>
+                <div class="field-group"><label for="staff-competence-hours">Horas registradas na competência</label><input id="staff-competence-hours" type="number" min="0" max="200" step="1" placeholder="Ex.: 31" /></div>
+                <div class="field-group"><label for="staff-expected-shifts">Plantões previstos no mês</label><input id="staff-expected-shifts" type="number" min="0" max="31" step="1" placeholder="Ex.: 15" /></div>
               </div>
               <p id="staff-month-note" class="staff-month-note">Sem competência selecionada.</p>
               <div id="staff-calendar" class="staff-calendar"><p class="muted">Selecione uma competência para abrir o calendário.</p></div>
@@ -115,12 +116,11 @@ function renderManagementShell() {
     </section>`;
 
   const scheduleSelect = $("staff-schedule");
-  scheduleSelect.innerHTML = reference.schedules.map((schedule) => {
+  scheduleSelect.innerHTML = `<option value="">Não configurar competência agora</option>` + reference.schedules.map((schedule) => {
     const disabled = schedule.status !== "draft" ? "disabled" : "";
     return `<option value="${esc(schedule.id)}" ${disabled}>${esc(scheduleLabel(schedule))}${schedule.status !== "draft" ? " · somente leitura" : ""}</option>`;
   }).join("");
-  const firstDraft = reference.schedules.find((x) => x.status === "draft");
-  if (firstDraft) scheduleSelect.value = firstDraft.id;
+  scheduleSelect.value = "";
 
   $("staff-new").addEventListener("click", () => resetForm(true));
   $("staff-reset").addEventListener("click", () => resetForm(true));
@@ -203,6 +203,10 @@ async function loadSelectedMonth() {
   const scheduleId = $("staff-schedule")?.value;
   const schedule = scheduleFor(scheduleId);
   if (!schedule) {
+    $("staff-expected-shifts").value = "";
+    $("staff-competence-hours").value = "";
+    $("staff-expected-shifts").disabled = true;
+    $("staff-competence-hours").disabled = true;
     renderCalendar(null);
     return;
   }
@@ -210,10 +214,14 @@ async function loadSelectedMonth() {
     renderCalendar(schedule);
     $("staff-calendar").innerHTML = '<p class="muted">Esta competência não está em rascunho e não pode ser editada.</p>';
     $("staff-expected-shifts").disabled = true;
+    $("staff-competence-hours").disabled = true;
     return;
   }
   $("staff-expected-shifts").disabled = false;
+  $("staff-competence-hours").disabled = false;
   if (!selectedStaffId) {
+    $("staff-expected-shifts").value = "";
+    $("staff-competence-hours").value = "";
     renderCalendar(schedule);
     return;
   }
@@ -228,6 +236,7 @@ async function loadSelectedMonth() {
     const payload = data ?? {};
     const target = payload.target ?? null;
     $("staff-expected-shifts").value = target?.expected_shifts ?? "";
+    $("staff-competence-hours").value = target?.weekly_hours_snapshot ?? "";
     const values = new Map((payload.markers ?? []).map((row) => [String(row.work_date).slice(0, 10), String(row.marker ?? "").toUpperCase()]));
     markerData = payload.markers ?? [];
     renderCalendar(schedule, values);
@@ -253,9 +262,11 @@ function resetForm(clearNotice = false) {
   $("staff-masp").classList.remove("readonly-field");
   $("staff-save").textContent = "Salvar cadastro";
   $("staff-expected-shifts").value = "";
-  const defaultSchedule = reference.schedules.find((x) => x.status === "draft") || reference.schedules[0];
-  if (defaultSchedule) $("staff-schedule").value = defaultSchedule.id;
-  // Novo cadastro inicia sem vínculo presumido; o responsável escolhe as combinações.
+  $("staff-competence-hours").value = "";
+  $("staff-schedule").value = "";
+  $("staff-expected-shifts").disabled = true;
+  $("staff-competence-hours").disabled = true;
+  // Novo cadastro inicia sem vínculo nem competência presumidos; o responsável escolhe as combinações.
   document.querySelectorAll("[data-staff-assignment]").forEach((input) => { input.checked = false; });
   renderCalendar(scheduleFor($("staff-schedule").value));
   renderDirectory();
@@ -303,23 +314,30 @@ async function saveStaff(event) {
   const schedule = scheduleFor($("staff-schedule").value);
   if (!/^[0-9]{1,20}$/.test(masp)) return notify("Informe um MASP numérico válido.", "error");
   if (!nome) return notify("Informe o nome completo.", "error");
+  if (!categoria) return notify("Informe a categoria profissional.", "error");
   if (active && !assignments.length) return notify("Selecione pelo menos uma unidade/turno para o profissional ativo.", "error");
-  if (!schedule) return notify("Selecione uma competência mensal válida.", "error");
-  if (active && schedule.status !== "draft") return notify("A competência selecionada não está em rascunho.", "error");
-  const scheduleUnit = reference.units.find((x) => x.id === schedule.unit_id);
-  const scheduleShift = reference.shifts.find((x) => x.id === schedule.shift_id);
-  if (active && !assignments.some((a) => a.unit_code === scheduleUnit?.code && a.shift_code === scheduleShift?.code)) {
-    return notify("Marque o vínculo correspondente à unidade e ao turno da competência selecionada.", "error");
+  if (schedule && schedule.status !== "draft") return notify("A competência selecionada não está em rascunho.", "error");
+  if (active && schedule) {
+    const scheduleUnit = reference.units.find((x) => x.id === schedule.unit_id);
+    const scheduleShift = reference.shifts.find((x) => x.id === schedule.shift_id);
+    if (!assignments.some((a) => a.unit_code === scheduleUnit?.code && a.shift_code === scheduleShift?.code)) {
+      return notify("Marque o vínculo correspondente à unidade e ao turno da competência selecionada.", "error");
+    }
   }
-  // Cadastro inativo pode ser salvo sem gravar alterações em competência mensal.
+  // É possível cadastrar o profissional e configurar a competência posteriormente.
   const scheduleToSave = active ? schedule : null;
   const expectedRaw = $("staff-expected-shifts").value;
   const expected = expectedRaw === "" ? null : Number(expectedRaw);
   if (expected !== null && (!Number.isInteger(expected) || expected < 0 || expected > 31)) {
     return notify("A meta mensal deve ser um número inteiro entre 0 e 31.", "error");
   }
-  const markers = [...document.querySelectorAll("[data-day-marker]")]
-    .map((input) => ({ work_date: input.dataset.dayMarker, marker: input.value }));
+  const competenceHoursRaw = $("staff-competence-hours").value;
+  const competenceHours = competenceHoursRaw === "" ? null : Number(competenceHoursRaw);
+  if (competenceHours !== null && (!Number.isInteger(competenceHours) || competenceHours < 0 || competenceHours > 200)) {
+    return notify("As horas registradas na competência devem ser um número inteiro entre 0 e 200.", "error");
+  }
+  const markers = scheduleToSave ? [...document.querySelectorAll("[data-day-marker]")]
+    .map((input) => ({ work_date: input.dataset.dayMarker, marker: input.value })) : [];
 
   button.disabled = true;
   button.textContent = "Salvando...";
@@ -330,7 +348,8 @@ async function saveStaff(event) {
       p_masp: masp,
       p_nome: nome,
       p_categoria: categoria,
-      p_weekly_hours: weeklyHours === "" ? null : Number(weeklyHours),
+      p_contract_weekly_hours: weeklyHours === "" ? null : Number(weeklyHours),
+      p_competence_hours_snapshot: scheduleToSave ? competenceHours : null,
       p_contract_marker: $("staff-contract-marker").checked,
       p_active: active,
       p_assignments: assignments,
