@@ -103,7 +103,7 @@ function renderManagementShell() {
               </div>
               <p id="staff-month-note" class="staff-month-note">Sem competência selecionada.</p>
               <div id="staff-calendar" class="staff-calendar"><p class="muted">Selecione uma competência para abrir o calendário.</p></div>
-              <div class="staff-marker-legend"><b>Marcações:</b> X = disponível · FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento preliminar · REM = remanejamento manual · TP/REV = revisão. Campo vazio não confirma disponibilidade.</div>
+              <div class="staff-marker-legend"><b>Marcações:</b> X = disponível · FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento preliminar · REM = remanejamento manual · TP/REV = revisão. Campo vazio significa sem marcação; se já houver registro no dia, ele passa para REV/revisão, preservando a origem.</div>
             </div>
             <div class="staff-form-actions">
               <button id="staff-reset" type="button" class="secondary-btn">Limpar formulário</button>
