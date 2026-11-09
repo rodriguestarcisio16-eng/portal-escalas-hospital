@@ -130,6 +130,7 @@ function renderSkeleton() {
             <div class="generator-actions">
               <button id="simulate-proposal" class="primary-btn compact-btn" type="button">Simular mês</button>
               <button id="generate-proposal" class="secondary-btn" type="button" disabled>Salvar para revisão</button>
+              <button id="export-proposal-pdf" class="secondary-btn" type="button" disabled>Gerar PDF</button>
             </div>
           </div>
         </section>
@@ -147,10 +148,12 @@ function renderSkeleton() {
   $("analyze-month").addEventListener("click", () => analyzeMonth());
   $("simulate-proposal").addEventListener("click", () => simulateSelectedSchedule());
   $("generate-proposal").addEventListener("click", () => saveScheduleProposal());
+  $("export-proposal-pdf").addEventListener("click", () => exportProposalPdf());
   const invalidateProposal = () => {
     lastProposal = null;
     $("generate-proposal").disabled = true;
     $("generate-proposal").textContent = "Salvar para revisão";
+    $("export-proposal-pdf").disabled = true;
   };
   $("schedule-unit").addEventListener("change", () => { invalidateProposal(); loadDay(); loadSavedProposalHistory(); });
   $("schedule-shift").addEventListener("change", () => { invalidateProposal(); loadDay(); loadSavedProposalHistory(); });
@@ -612,6 +615,7 @@ function renderBlockedUtiProposal() {
     $("generate-proposal").disabled = true;
     $("generate-proposal").textContent = "Salvar para revisão";
   }
+  if ($("export-proposal-pdf")) $("export-proposal-pdf").disabled = true;
   const items = [
     ["Rodízio incompleto", "A UTI tem 22 postos diretos, mas a sequência dos profissionais de 40h lista somente 21. O leito 21 (UTI-11) não aparece na sequência."],
     ["Dois apoios, ciclo sem distinção", "A estrutura tem APOIO-1 (bloco A) e APOIO-2 (bloco B), mas o ciclo determina apenas “APOIO” após as sequências ímpares e pares. Não vou escolher qual dos dois usar."],
@@ -713,6 +717,7 @@ function renderUsiProposal(report, schedule, unit, shift) {
   lastProposal = { scheduleId: schedule.id, proposalData, metrics };
   $("generate-proposal").disabled = false;
   $("generate-proposal").textContent = "Salvar para revisão";
+  $("export-proposal-pdf").disabled = false;
 
   $("proposal-preview").innerHTML =
     '<div class="engine-summary-grid">' +
@@ -772,6 +777,120 @@ async function loadSavedProposalHistory() {
     }).join("") + '</div>';
 }
 
+function exportProposalPdf() {
+  if (!lastProposal) {
+    proposalMessage("Simule uma proposta antes de gerar o PDF.", "error");
+    return;
+  }
+  const preview = $("proposal-preview");
+  if (!preview || !preview.innerHTML.trim()) {
+    proposalMessage("A prévia da proposta não está disponível para impressão.", "error");
+    return;
+  }
+
+  const schedule = reference.schedules.find(item => item.id === lastProposal.scheduleId);
+  const unit = reference.units.find(item => item.id === schedule?.unit_id);
+  const shift = reference.shifts.find(item => item.id === schedule?.shift_id);
+  const competence = schedule
+    ? new Date(String(schedule.competence).slice(0, 10) + "T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
+    : "Competência não identificada";
+  const generatedAt = new Date(lastProposal.proposalData.generated_at || Date.now()).toLocaleString("pt-BR");
+  const proposalVersion = lastProposal.proposalVersion
+    ? "Proposta v" + lastProposal.proposalVersion
+    : "Prévia não salva";
+  const documentTitle = [
+    "proposta-escala",
+    unit?.code || "unidade",
+    shift?.code || "turno",
+    schedule ? String(schedule.competence).slice(0, 7) : "competencia",
+    lastProposal.proposalVersion ? "v" + lastProposal.proposalVersion : "previa"
+  ].join("-").toLowerCase();
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    proposalMessage("O navegador bloqueou a janela do PDF. Permita pop-ups para este portal e tente novamente.", "error");
+    return;
+  }
+
+  const printHtml = `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(documentTitle)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm 11mm 14mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #1b2927; font: 10px Arial, Helvetica, sans-serif; }
+    h1 { margin: 0 0 4px; font-size: 19px; letter-spacing: .2px; }
+    .pdf-header { border-bottom: 2px solid #123b36; padding-bottom: 10px; margin-bottom: 12px; }
+    .pdf-eyebrow { margin: 0 0 5px; color: #8a7b4d; font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
+    .pdf-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 7px; color: #53615c; font-size: 10px; }
+    .pdf-status { display: inline-block; margin-top: 8px; padding: 4px 7px; border: 1px solid #d9cfae; border-radius: 4px; color: #66572b; font-weight: 700; }
+    .pdf-content .engine-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 10px 0; }
+    .pdf-content .engine-summary-grid > div { padding: 8px; border: 1px solid #dce3df; border-radius: 5px; }
+    .pdf-content .engine-summary-grid strong { display: block; color: #123b36; font-size: 17px; }
+    .pdf-content .engine-summary-grid small { color: #64726c; font-size: 8px; }
+    .pdf-content .engine-method, .pdf-content .engine-warning-list { margin: 9px 0; padding: 8px 10px; border: 1px solid #dce3df; border-radius: 5px; line-height: 1.45; }
+    .pdf-content .engine-method p { margin: 4px 0; }
+    .pdf-content .engine-warning-list { border-color: #dfcc91; background: #fffaf0; }
+    .pdf-content .engine-warning-list p { margin: 3px 0; }
+    .pdf-content .proposal-day { margin: 9px 0; border: 1px solid #dce3df; border-radius: 5px; break-inside: avoid-page; page-break-inside: avoid; }
+    .pdf-content .proposal-day > summary { display: block; padding: 7px 9px; background: #f1f5f3; font-weight: 700; }
+    .pdf-content .proposal-day > summary small { float: right; color: #53615c; font-size: 8px; font-weight: 400; }
+    .pdf-content .proposal-day > .proposal-day-body { display: block !important; padding: 5px 8px 8px; }
+    .pdf-content .table-scroll { overflow: visible !important; }
+    .pdf-content table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .pdf-content th, .pdf-content td { padding: 4px 6px; border-bottom: 1px solid #e5eae7; text-align: left; vertical-align: top; }
+    .pdf-content th { color: #53615c; font-size: 8px; text-transform: uppercase; }
+    .pdf-content td { font-size: 9px; }
+    .pdf-content td:first-child { width: 39%; }
+    .pdf-content td b { display: block; }
+    .pdf-content .sub-value { display: block; margin-top: 2px; color: #71807a; font-size: 8px; }
+    .pdf-content .status-chip { font-size: 8px; font-weight: 700; }
+    .pdf-content .proposal-side-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; margin-top: 7px; }
+    .pdf-content .proposal-side-notes > div { min-width: 0; }
+    .pdf-content .proposal-side-notes b { font-size: 8px; }
+    .pdf-content .proposal-side-notes p, .pdf-content .engine-notes { margin: 3px 0; color: #53615c; font-size: 8px; line-height: 1.4; }
+    .pdf-content .engine-notes { padding-left: 14px; }
+    .pdf-footer { margin-top: 12px; padding-top: 7px; border-top: 1px solid #dce3df; color: #71807a; font-size: 8px; line-height: 1.4; }
+    .pdf-footer strong { color: #8a5b21; }
+    @media print {
+      details.proposal-day > .proposal-day-body { display: block !important; }
+      details.proposal-day { break-inside: avoid-page; }
+    }
+  </style>
+</head>
+<body>
+  <header class="pdf-header">
+    <p class="pdf-eyebrow">Portal de Escalas · Documento de trabalho</p>
+    <h1>Proposta de escala</h1>
+    <div class="pdf-meta">
+      <span><b>Unidade:</b> ${escapeHtml(unit?.name || "USI Adulto")}</span>
+      <span><b>Turno:</b> ${escapeHtml(shift?.name || "—")}</span>
+      <span><b>Competência:</b> ${escapeHtml(competence)}</span>
+    </div>
+    <div class="pdf-meta">
+      <span><b>Documento:</b> ${escapeHtml(proposalVersion)}</span>
+      <span><b>Gerado em:</b> ${escapeHtml(generatedAt)}</span>
+    </div>
+    <span class="pdf-status">PENDENTE DE REVISÃO · NÃO PUBLICADA</span>
+  </header>
+  <main class="pdf-content">${preview.innerHTML}</main>
+  <footer class="pdf-footer">
+    <strong>ATENÇÃO:</strong> este documento representa uma proposta automática para conferência da superadmin.
+    Não é escala oficial, não foi aprovada e não autoriza publicação ou execução de plantões.
+  </footer>
+  <script>window.addEventListener("load", function () { window.focus(); window.print(); });</script>
+</body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  proposalMessage("Prévia de impressão aberta. No destino da impressão, escolha “Salvar como PDF”.", "success");
+}
+
 async function saveScheduleProposal() {
   if (!lastProposal) {
     proposalMessage("Execute uma nova simulação antes de salvar a proposta.", "error");
@@ -788,7 +907,8 @@ async function saveScheduleProposal() {
     });
     if (error) throw new Error(error.message || "Não foi possível salvar a proposta.");
     const result = typeof data === "string" ? JSON.parse(data) : (data ?? {});
-    lastProposal = null;
+    lastProposal.proposalVersion = result.proposal_version ?? null;
+    button.disabled = true;
     button.textContent = "Proposta salva";
     proposalMessage(
       "Proposta v" + (result.proposal_version ?? "—") +
@@ -807,6 +927,7 @@ async function simulateSelectedSchedule() {
   lastProposal = null;
   $("generate-proposal").disabled = true;
   $("generate-proposal").textContent = "Salvar para revisão";
+  $("export-proposal-pdf").disabled = true;
   const button = $("simulate-proposal");
   button.disabled = true;
   button.textContent = "Simulando...";
