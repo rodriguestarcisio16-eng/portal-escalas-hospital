@@ -1,4 +1,4 @@
-import { initializeStaffManagement } from "./staff-management.js?v=20261109-1";
+import { initializeStaffManagement } from "./staff-management.js?v=20261109-2";
 
 const $ = (id) => document.getElementById(id);
 
