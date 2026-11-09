@@ -165,3 +165,57 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
 .engine-blocker p{font-size:10px;color:#806f69;line-height:1.5;margin:0}
 @media(max-width:900px){.engine-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.generator-actions{width:100%;flex-direction:column;align-items:stretch}.generator-actions button{width:100%}.proposal-side-notes{grid-template-columns:1fr}.proposal-day>summary{align-items:flex-start;flex-direction:column}.proposal-day>summary small{text-align:left}.engine-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* ===== Gestão de profissionais — cadastro e manutenção pelo superadmin ===== */
+.staff-manager-panel{margin-bottom:18px}
+.staff-manager-heading{align-items:flex-start}
+.staff-manager-heading h4{margin:0 0 4px}
+.staff-manager-heading p:not(.eyebrow){font-size:11px;color:var(--muted);line-height:1.5;margin:4px 0 0;max-width:720px}
+.staff-manager-heading .primary-btn{margin:0;white-space:nowrap}
+.staff-manager-notice{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid #e8e0c5;background:#fcfaf2;border-radius:10px;margin:12px 0}
+.staff-manager-notice b{font:700 11px Manrope;color:#66572b}
+.staff-manager-notice span{font-size:10px;line-height:1.5;color:#746a4c}
+.staff-manager-layout{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,2fr);gap:14px;align-items:start;margin-top:12px}
+.staff-directory,.staff-editor{border:1px solid var(--line);border-radius:10px;background:#fff;padding:12px;min-width:0}
+.staff-directory-head,.staff-editor-head,.staff-directory-item-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.staff-directory-head h5,.staff-editor-head h5{font:800 13px Manrope;color:var(--ink);margin:0}
+.staff-editor-head{margin-bottom:12px}
+.staff-editor-head p{font-size:10px;color:var(--muted);margin:4px 0 0}
+.staff-directory input[type=search],.staff-editor input:not([type=checkbox]):not([type=hidden]),.staff-editor select{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;color:var(--ink);font:500 11px 'DM Sans',sans-serif}
+.staff-directory input[type=search]{margin:10px 0}
+.staff-directory-list{display:flex;flex-direction:column;gap:6px;max-height:560px;overflow:auto}
+.staff-directory-item{display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff;cursor:pointer}
+.staff-directory-item:hover,.staff-directory-item.selected{border-color:var(--green2);background:#f5faf8}
+.staff-directory-item b{font:700 10px Manrope;color:var(--ink);line-height:1.35}
+.staff-directory-item small{font-size:9px;color:var(--muted);line-height:1.4}
+.staff-directory-item .status-chip{font-size:8px;padding:3px 6px}
+.staff-editor-head .status-chip{flex:none}
+.staff-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.staff-form-grid-three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.staff-span-two{grid-column:span 2}
+.staff-editor .field-group{min-width:0}
+.staff-editor .field-group label{display:block;font-size:10px;font-weight:700;color:#596762;margin-bottom:5px}
+.staff-editor .staff-check-field{display:flex;flex-direction:column;justify-content:center;gap:7px}
+.staff-editor .staff-check-field label,.staff-assignment-unit label{display:flex;align-items:center;gap:6px;font-size:10px;color:#53615c;margin:0}
+.staff-editor input[type=checkbox]{accent-color:var(--green2);width:14px;height:14px}
+.staff-editor .readonly-field{background:#f2f5f3!important;color:#71807c!important}
+.staff-form-section{border-top:1px solid var(--line);margin-top:14px;padding-top:13px}
+.staff-form-section-head{display:flex;flex-direction:column;gap:3px;margin-bottom:9px}
+.staff-form-section-head h6{font:800 11px Manrope;color:var(--ink);margin:0}
+.staff-form-section-head small{font-size:9px;color:var(--muted);line-height:1.4}
+.staff-assignment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.staff-assignment-unit{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-wrap:wrap;gap:10px}
+.staff-assignment-unit>b{width:100%;font:700 10px Manrope;color:var(--ink)}
+.staff-month-note{font-size:10px;color:var(--muted);line-height:1.4;margin:8px 0}
+.staff-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.staff-day-cell{min-width:0;border:1px solid var(--line);border-radius:7px;padding:5px;background:#fbfcfb;display:flex;flex-direction:column;gap:4px}
+.staff-day-cell span{font-size:9px;font-weight:700;color:#586760}
+.staff-day-cell select{font-size:9px!important;padding:5px 3px!important}
+.staff-marker-legend{font-size:9px;line-height:1.5;color:var(--muted);margin-top:9px}
+.staff-marker-legend b{color:#465650}
+.staff-form-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px}
+.staff-form-actions button{margin:0}
+.staff-form-actions .secondary-btn{font-size:10px;padding:9px 12px}
+@media(max-width:1000px){.staff-manager-layout{grid-template-columns:1fr}.staff-directory-list{max-height:280px}.staff-directory-item{max-width:none}}
+@media(max-width:650px){.staff-manager-heading{flex-direction:column}.staff-manager-heading .primary-btn{width:100%}.staff-form-grid-three{grid-template-columns:repeat(2,minmax(0,1fr))}.staff-form-grid-three .staff-span-two{grid-column:1/-1}.staff-calendar{grid-template-columns:repeat(4,minmax(0,1fr))}.staff-assignment-grid{grid-template-columns:1fr}.staff-form-actions{flex-direction:column-reverse}.staff-form-actions button{width:100%}}
