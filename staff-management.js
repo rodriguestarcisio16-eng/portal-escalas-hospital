@@ -102,6 +102,7 @@ function renderManagementShell() {
                 <div class="field-group"><label for="staff-competence-hours">Horas registradas na competência</label><input id="staff-competence-hours" type="number" min="0" max="200" step="1" placeholder="Ex.: 31" /></div>
                 <div class="field-group"><label for="staff-expected-shifts">Plantões previstos no mês</label><input id="staff-expected-shifts" type="number" min="0" max="31" step="1" placeholder="Ex.: 15" /></div>
               </div>
+              <p class="staff-month-note">Carga contratual semanal, horas registradas na competência e plantões previstos são três informações independentes. O portal não calcula uma a partir da outra.</p>
               <p id="staff-month-note" class="staff-month-note">Sem competência selecionada.</p>
               <div id="staff-calendar" class="staff-calendar"><p class="muted">Selecione uma competência para abrir o calendário.</p></div>
               <div class="staff-marker-legend"><b>Marcações:</b> X = disponível · FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento preliminar · REM = remanejamento manual · TP/REV = revisão. Campo vazio significa sem marcação; se já houver registro no dia, ele passa para REV/revisão, preservando a origem.</div>
