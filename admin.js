@@ -8,6 +8,7 @@ let reference = { units: [], shifts: [], schedules: [] };
 let activeSchedule = null;
 let activeStaff = [];
 let activeDayRows = [];
+let lastProposal = null;
 
 const monthStart = "2026-12-01";
 const monthEnd = "2026-12-31";
@@ -128,7 +129,7 @@ function renderSkeleton() {
             <div><b>Motor de distribuição</b><p id="generator-note">Simule a distribuição da unidade e turno selecionados. A simulação não grava nem publica dados.</p></div>
             <div class="generator-actions">
               <button id="simulate-proposal" class="primary-btn compact-btn" type="button">Simular mês</button>
-              <button id="generate-proposal" class="secondary-btn" type="button" disabled>Salvar proposta</button>
+              <button id="generate-proposal" class="secondary-btn" type="button" disabled>Salvar para revisão</button>
             </div>
           </div>
         </section>
@@ -144,9 +145,15 @@ function renderSkeleton() {
   $("refresh-day").addEventListener("click", () => loadDay());
   $("analyze-month").addEventListener("click", () => analyzeMonth());
   $("simulate-proposal").addEventListener("click", () => simulateSelectedSchedule());
-  $("schedule-unit").addEventListener("change", () => loadDay());
-  $("schedule-shift").addEventListener("change", () => loadDay());
-  $("schedule-date").addEventListener("change", () => loadDay());
+  $("generate-proposal").addEventListener("click", () => saveScheduleProposal());
+  const invalidateProposal = () => {
+    lastProposal = null;
+    $("generate-proposal").disabled = true;
+    $("generate-proposal").textContent = "Salvar para revisão";
+  };
+  $("schedule-unit").addEventListener("change", () => { invalidateProposal(); loadDay(); });
+  $("schedule-shift").addEventListener("change", () => { invalidateProposal(); loadDay(); });
+  $("schedule-date").addEventListener("change", () => { invalidateProposal(); loadDay(); });
 }
 
 
@@ -598,6 +605,11 @@ function proposalMessage(text, type) {
 }
 
 function renderBlockedUtiProposal() {
+  lastProposal = null;
+  if ($("generate-proposal")) {
+    $("generate-proposal").disabled = true;
+    $("generate-proposal").textContent = "Salvar para revisão";
+  }
   const items = [
     ["Rodízio incompleto", "A UTI tem 22 postos diretos, mas a sequência dos profissionais de 40h lista somente 21. O leito 21 (UTI-11) não aparece na sequência."],
     ["Dois apoios, ciclo sem distinção", "A estrutura tem APOIO-1 (bloco A) e APOIO-2 (bloco B), mas o ciclo determina apenas “APOIO” após as sequências ímpares e pares. Não vou escolher qual dos dois usar."],
@@ -615,7 +627,7 @@ function renderBlockedUtiProposal() {
   proposalMessage("Simulação UTI interrompida antes da alocação para evitar uma escala que descumpra as regras fornecidas.", "error");
 }
 
-function renderUsiProposal(report) {
+function renderUsiProposal(report, schedule, unit, shift) {
   let totalFilled = 0;
   let totalVacant = 0;
   let totalExtras = 0;
@@ -657,6 +669,49 @@ function renderUsiProposal(report) {
   const warnings = report.globalIssues.length
     ? '<div class="engine-warning-list">' + report.globalIssues.map(x => '<p>' + escapeHtml(x) + '</p>').join("") + '</div>'
     : "";
+  const proposalData = {
+    schema_version: 1,
+    algorithm: "USI_BALANCED_V1",
+    generated_at: new Date().toISOString(),
+    unit_code: unit.code,
+    shift_code: shift.code,
+    days: report.days.map(day => ({
+      work_date: day.date,
+      assignments: day.assignments.map(item => ({
+        post_code: item.code,
+        staff_id: item.staff?.id ?? null
+      })),
+      material: day.material
+        ? { post_code: "USI-CIRC-MAT", staff_id: day.material.id }
+        : null,
+      extras: day.extras.map(person => ({
+        staff_id: person.id, nome: person.nome, masp: person.masp
+      })),
+      rem: day.rem.map(person => ({
+        staff_id: person.id, nome: person.nome, masp: person.masp
+      })),
+      review: day.review.map(item => ({
+        marker: item.marker,
+        staff_id: item.staff?.id ?? null,
+        source_row: item.source_row ?? null
+      })),
+      notes: day.notes
+    })),
+    global_issues: report.globalIssues
+  };
+  const metrics = {
+    algorithm: "USI_BALANCED_V1",
+    days: report.days.length,
+    direct_filled: totalFilled,
+    direct_vacant: totalVacant,
+    daily_extras: totalExtras,
+    global_issues: report.globalIssues.length,
+    material_filled: report.days.filter(day => Boolean(day.material)).length
+  };
+  lastProposal = { scheduleId: schedule.id, proposalData, metrics };
+  $("generate-proposal").disabled = false;
+  $("generate-proposal").textContent = "Salvar para revisão";
+
   $("proposal-preview").innerHTML =
     '<div class="engine-summary-grid">' +
       '<div><strong>' + report.days.length + '</strong><small>dias simulados</small></div>' +
@@ -666,10 +721,43 @@ function renderUsiProposal(report) {
     '</div>' +
     '<div class="engine-method"><b>Critério provisório de distribuição direta</b><p>Entre os profissionais elegíveis com X confirmado, o motor equilibra a quantidade de alocações ao longo do mês, respeitando os postos em sequência. Esse critério de equilíbrio é uma proposta de trabalho, não uma regra assistencial previamente aprovada.</p><p>Material/circulação segue a prioridade nominativa informada. O apoio da USI permanece em branco. A simulação não grava na tabela assignments.</p></div>' +
     warnings + '<div class="proposal-days">' + cards + '</div>';
-  proposalMessage("Simulação da USI concluída em memória. " + totalFilled + " postos diretos preenchidos e " + totalVacant + " descobertos no conjunto dos 31 dias. Nada foi gravado.", "success");
+  proposalMessage("Simulação da USI concluída em memória. " + totalFilled + " postos diretos preenchidos e " + totalVacant + " descobertos no conjunto dos 31 dias. Nada foi gravado. A prévia pode ser salva para revisão.", "success");
+}
+
+async function saveScheduleProposal() {
+  if (!lastProposal) {
+    proposalMessage("Execute uma nova simulação antes de salvar a proposta.", "error");
+    return;
+  }
+  const button = $("generate-proposal");
+  button.disabled = true;
+  button.textContent = "Salvando...";
+  try {
+    const { data, error } = await client.rpc("admin_save_schedule_proposal", {
+      p_schedule_id: lastProposal.scheduleId,
+      p_proposal_data: lastProposal.proposalData,
+      p_metrics: lastProposal.metrics
+    });
+    if (error) throw new Error(error.message || "Não foi possível salvar a proposta.");
+    const result = typeof data === "string" ? JSON.parse(data) : (data ?? {});
+    lastProposal = null;
+    button.textContent = "Proposta salva";
+    proposalMessage(
+      "Proposta v" + (result.proposal_version ?? "—") +
+      " salva para revisão. Ela não foi publicada e não alterou a escala oficial.",
+      "success"
+    );
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "Salvar para revisão";
+    proposalMessage(error.message || "Falha ao salvar a proposta.", "error");
+  }
 }
 
 async function simulateSelectedSchedule() {
+  lastProposal = null;
+  $("generate-proposal").disabled = true;
+  $("generate-proposal").textContent = "Salvar para revisão";
   const button = $("simulate-proposal");
   button.disabled = true;
   button.textContent = "Simulando...";
@@ -935,7 +1023,7 @@ async function simulateSelectedSchedule() {
     }
 
     const report = {days:reportDays,globalIssues};
-    renderUsiProposal(report);
+    renderUsiProposal(report, schedule, unit, shift);
   } catch (error) {
     $("proposal-preview").innerHTML = '<p class="empty-cell">Não foi possível concluir a simulação. Nenhuma alocação foi gravada.</p>';
     proposalMessage(error.message || "Erro ao simular a proposta.", "error");
