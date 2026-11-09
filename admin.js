@@ -1,3 +1,5 @@
+import { initializeStaffManagement } from "./staff-management.js?v=20261109-1";
+
 const $ = (id) => document.getElementById(id);
 
 let initialized = false;
@@ -42,6 +44,7 @@ function statusLabel(marker, status) {
 function renderSkeleton() {
   $("admin-content").innerHTML = `
     <div class="admin-module">
+      <div id="staff-management-root"></div>
       <div class="module-heading">
         <div>
           <p class="eyebrow dark">GESTÃO OPERACIONAL</p>
@@ -205,7 +208,7 @@ function renderMonthAnalysis(report) {
   if (report.utI40Count > 0) {
     issues.push({level:"blocking", title:"Continuidade do rodízio de 40h da UTI", detail:`${report.utI40Count} vínculo(s) de 40h identificados na UTI. A posição final válida de novembro ainda precisa ser vinculada inequivocamente aos profissionais de dezembro.`});
   }
-  issues.push({level:"blocking",title:"Restrições individuais e regras de elegibilidade",detail:"As restrições nominativas, prioridades de funções e exceções de calendário ainda precisam ser configuradas em estrutura protegida no banco. Não serão gravadas no código público do site."});
+  issues.push({level:"blocking",title:"Regras individuais ainda não totalmente executadas pelo motor",detail:"As regras nominativas já estão armazenadas no banco privado. A distribuição automática ainda não aplica todos os tipos de restrição e exceção; pares em blocos opostos, escolhas manuais e algumas regras de calendário permanecem em validação."});
   if (report.dailyShortages.length) {
     const sample = report.dailyShortages.slice(0,8).map(x =>
       `${x.date} · ${x.unitShort} · ${x.shiftShort}: ${x.available}/${x.posts}`
@@ -949,6 +952,7 @@ export async function initializeAdminWorkspace(supabaseClient) {
   renderSkeleton();
   try {
     await loadReferenceData();
+    await initializeStaffManagement(client, reference);
   } catch (error) {
     message(error.message || "Não foi possível iniciar o módulo de escalas.", "error");
     renderUnavailable("Confira a conexão com o banco e as permissões do superadmin.");
