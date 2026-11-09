@@ -138,6 +138,7 @@ function renderSkeleton() {
         <div class="panel-heading"><div><h4>Simulação do motor</h4><p>Prévia por dia e posto. Nenhuma atribuição é gravada nesta etapa.</p></div><span class="status-chip neutral">Somente simulação</span></div>
         <p id="proposal-message" class="module-message" role="status"></p>
         <div id="proposal-preview"><p class="empty-cell">Selecione uma unidade e um turno e clique em “Simular mês”.</p></div>
+        <div id="saved-proposal-history" class="saved-proposal-history"><p class="muted">O histórico de propostas aparecerá aqui.</p></div>
       </section>
       <p class="module-disclaimer">Os dados exibidos são a fonte de disponibilidade da competência. A simulação preserva jornadas e marcações originais, não aprova nem publica escalas.</p>
     </div>`;
@@ -151,8 +152,8 @@ function renderSkeleton() {
     $("generate-proposal").disabled = true;
     $("generate-proposal").textContent = "Salvar para revisão";
   };
-  $("schedule-unit").addEventListener("change", () => { invalidateProposal(); loadDay(); });
-  $("schedule-shift").addEventListener("change", () => { invalidateProposal(); loadDay(); });
+  $("schedule-unit").addEventListener("change", () => { invalidateProposal(); loadDay(); loadSavedProposalHistory(); });
+  $("schedule-shift").addEventListener("change", () => { invalidateProposal(); loadDay(); loadSavedProposalHistory(); });
   $("schedule-date").addEventListener("change", () => { invalidateProposal(); loadDay(); });
 }
 
@@ -423,6 +424,7 @@ async function loadReferenceData() {
   }
   message("");
   await loadDay();
+  await loadSavedProposalHistory();
 }
 
 async function loadDay() {
@@ -724,6 +726,52 @@ function renderUsiProposal(report, schedule, unit, shift) {
   proposalMessage("Simulação da USI concluída em memória. " + totalFilled + " postos diretos preenchidos e " + totalVacant + " descobertos no conjunto dos 31 dias. Nada foi gravado. A prévia pode ser salva para revisão.", "success");
 }
 
+async function loadSavedProposalHistory() {
+  const root = $("saved-proposal-history");
+  if (!root) return;
+  const unitId = $("schedule-unit")?.value;
+  const shiftId = $("schedule-shift")?.value;
+  const schedule = reference.schedules.find(item =>
+    item.unit_id === unitId && item.shift_id === shiftId && item.competence === monthStart
+  );
+  if (!schedule) {
+    root.innerHTML = '<p class="muted">Não existe escala para consultar propostas nesta combinação.</p>';
+    return;
+  }
+  root.innerHTML = '<p class="muted">Consultando histórico de propostas...</p>';
+  const { data, error } = await client.from("schedule_proposals")
+    .select("id, proposal_version, status, metrics, created_at")
+    .eq("schedule_id", schedule.id)
+    .order("proposal_version", { ascending: false })
+    .limit(8);
+  if (error) {
+    root.innerHTML = '<p class="muted">Não foi possível carregar o histórico. Confira se a migração do gerador foi executada.</p>';
+    return;
+  }
+  if (!data?.length) {
+    root.innerHTML = '<div class="saved-proposal-heading"><b>Histórico de propostas</b><span class="status-chip neutral">0 versões</span></div><p class="muted">Nenhuma proposta salva para esta escala.</p>';
+    return;
+  }
+  const statusLabels = {
+    pending_review: "Aguardando revisão",
+    reviewed: "Revisada",
+    approved: "Aprovada",
+    rejected: "Rejeitada",
+    superseded: "Substituída"
+  };
+  root.innerHTML =
+    '<div class="saved-proposal-heading"><b>Histórico de propostas</b><span class="status-chip neutral">' + data.length + ' versão(ões)</span></div>' +
+    '<div class="saved-proposal-list">' + data.map(item => {
+      const metrics = item.metrics || {};
+      const timestamp = new Date(item.created_at).toLocaleString("pt-BR");
+      return '<div class="saved-proposal-item"><div><b>Proposta v' + escapeHtml(item.proposal_version) +
+        '</b><small>' + escapeHtml(timestamp) + '</small></div><div><span class="status-chip warning">' +
+        escapeHtml(statusLabels[item.status] || item.status) + '</span><small>' +
+        escapeHtml(metrics.direct_filled ?? "—") + ' postos preenchidos · ' +
+        escapeHtml(metrics.direct_vacant ?? "—") + ' descobertos</small></div></div>';
+    }).join("") + '</div>';
+}
+
 async function saveScheduleProposal() {
   if (!lastProposal) {
     proposalMessage("Execute uma nova simulação antes de salvar a proposta.", "error");
@@ -747,6 +795,7 @@ async function saveScheduleProposal() {
       " salva para revisão. Ela não foi publicada e não alterou a escala oficial.",
       "success"
     );
+    await loadSavedProposalHistory();
   } catch (error) {
     button.disabled = false;
     button.textContent = "Salvar para revisão";
