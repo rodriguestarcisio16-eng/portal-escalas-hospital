@@ -787,149 +787,249 @@ async function loadSavedProposalHistory() {
     }).join("") + '</div>';
 }
 
-function exportProposalPdf() {
+function exportProposalPdf(period = "monthly") {
   if (!lastProposal) {
     proposalMessage("Simule uma proposta antes de gerar o PDF.", "error");
     return;
   }
-  const preview = $("proposal-preview");
-  if (!preview || !preview.innerHTML.trim()) {
-    proposalMessage("A prévia da proposta não está disponível para impressão.", "error");
-    return;
-  }
-
   const schedule = reference.schedules.find(item => item.id === lastProposal.scheduleId);
   const unit = reference.units.find(item => item.id === schedule?.unit_id);
   const shift = reference.shifts.find(item => item.id === schedule?.shift_id);
-  const competence = schedule
-    ? new Date(String(schedule.competence).slice(0, 10) + "T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
-    : "Competência não identificada";
-  const generatedAt = new Date(lastProposal.proposalData.generated_at || Date.now()).toLocaleString("pt-BR");
-  const proposalVersion = lastProposal.proposalVersion
-    ? "Proposta v" + lastProposal.proposalVersion
-    : "Prévia não salva";
-  const documentTitle = [
-    "proposta-escala",
-    unit?.code || "unidade",
-    shift?.code || "turno",
-    schedule ? String(schedule.competence).slice(0, 7) : "competencia",
-    lastProposal.proposalVersion ? "v" + lastProposal.proposalVersion : "previa"
-  ].join("-").toLowerCase();
-
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) {
-    proposalMessage("O navegador bloqueou a janela do PDF. Permita pop-ups para este portal e tente novamente.", "error");
+  const data = lastProposal.proposalData || {};
+  const allDays = [...(data.days || [])].sort((a,b) => a.work_date.localeCompare(b.work_date));
+  if (!schedule || !unit || !shift || !allDays.length) {
+    proposalMessage("A proposta não contém dados suficientes para montar o PDF. Simule novamente.", "error");
     return;
   }
 
-  const printHtml = `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(documentTitle)}</title>
-  <style>
-    @page { size: A4 portrait; margin: 12mm 11mm 14mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; color: #1b2927; font: 10px Arial, Helvetica, sans-serif; }
-    h1 { margin: 0 0 4px; font-size: 19px; letter-spacing: .2px; }
-    .pdf-header { border-bottom: 2px solid #123b36; padding-bottom: 10px; margin-bottom: 12px; }
-    .pdf-brand { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 11px; }
-    .pdf-brand img { display: block; width: 142px; max-height: 58px; object-fit: contain; object-position: left center; }
-    .pdf-brand-copy { flex: 1; text-align: right; }
-    .pdf-brand-copy strong { display: block; color: #087fa8; font-size: 10px; letter-spacing: .25px; }
-    .pdf-brand-copy span { display: block; margin-top: 3px; color: #5c696d; font-size: 8px; font-style: italic; }
-    .pdf-institution { margin: 0 0 5px; color: #53615c; font-size: 8px; letter-spacing: .4px; text-transform: uppercase; }
-    .pdf-eyebrow { margin: 0 0 5px; color: #8a7b4d; font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
-    .pdf-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 7px; color: #53615c; font-size: 10px; }
-    .pdf-status { display: inline-block; margin-top: 8px; padding: 4px 7px; border: 1px solid #d9cfae; border-radius: 4px; color: #66572b; font-weight: 700; }
-    .pdf-content .engine-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 10px 0; }
-    .pdf-content .engine-summary-grid > div { padding: 8px; border: 1px solid #dce3df; border-radius: 5px; }
-    .pdf-content .engine-summary-grid strong { display: block; color: #123b36; font-size: 17px; }
-    .pdf-content .engine-summary-grid small { color: #64726c; font-size: 8px; }
-    .pdf-content .engine-method, .pdf-content .engine-warning-list { margin: 9px 0; padding: 8px 10px; border: 1px solid #dce3df; border-radius: 5px; line-height: 1.45; }
-    .pdf-content .engine-method p { margin: 4px 0; }
-    .pdf-content .engine-warning-list { border-color: #dfcc91; background: #fffaf0; }
-    .pdf-content .engine-warning-list p { margin: 3px 0; }
-    .pdf-content .proposal-day { margin: 9px 0; border: 1px solid #dce3df; border-radius: 5px; break-inside: avoid-page; page-break-inside: avoid; }
-    .pdf-content .proposal-day > summary { display: block; padding: 7px 9px; background: #f1f5f3; font-weight: 700; }
-    .pdf-content .proposal-day > summary small { float: right; color: #53615c; font-size: 8px; font-weight: 400; }
-    .pdf-content .proposal-day > .proposal-day-body { display: block !important; padding: 5px 8px 8px; }
-    .pdf-content .table-scroll { overflow: visible !important; }
-    .pdf-content table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    .pdf-content th, .pdf-content td { padding: 4px 6px; border-bottom: 1px solid #e5eae7; text-align: left; vertical-align: top; }
-    .pdf-content th { color: #53615c; font-size: 8px; text-transform: uppercase; }
-    .pdf-content td { font-size: 9px; }
-    .pdf-content td:first-child { width: 39%; }
-    .pdf-content td b { display: block; }
-    .pdf-content .sub-value { display: block; margin-top: 2px; color: #71807a; font-size: 8px; }
-    .pdf-content .status-chip { font-size: 8px; font-weight: 700; }
-    .pdf-content .proposal-side-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; margin-top: 7px; }
-    .pdf-content .proposal-side-notes > div { min-width: 0; }
-    .pdf-content .proposal-side-notes b { font-size: 8px; }
-    .pdf-content .proposal-side-notes p, .pdf-content .engine-notes { margin: 3px 0; color: #53615c; font-size: 8px; line-height: 1.4; }
-    .pdf-content .engine-notes { padding-left: 14px; }
-    .pdf-footer { margin-top: 12px; padding-top: 7px; border-top: 1px solid #dce3df; color: #71807a; font-size: 8px; line-height: 1.4; }
-    .pdf-footer strong { color: #8a5b21; }
-    @media print {
-      details.proposal-day > .proposal-day-body { display: block !important; }
-      details.proposal-day { break-inside: avoid-page; }
+  const competenceKey = String(schedule.competence).slice(0,7);
+  let selectedDays = allDays;
+  let periodTitle = "Escala mensal";
+  let paper = "A3 landscape";
+  if (period === "weekly") {
+    const weekStart = $("pdf-week-start")?.value || monthStart;
+    if (weekStart.slice(0,7) !== competenceKey) {
+      proposalMessage("Escolha o início da semana dentro da competência da escala.", "error");
+      return;
     }
-  </style>
-</head>
-<body>
-  <header class="pdf-header">
-    <div class="pdf-brand">
-      <img src="https://seeklogo.com/images/F/FHEMIG-logo-5291357251-seeklogo.com.png"
-           alt="FHEMIG — Fundação Hospitalar do Estado de Minas Gerais"
-           onerror="this.hidden=true">
-      <div class="pdf-brand-copy">
-        <strong>FUNDAÇÃO HOSPITALAR DO ESTADO DE MINAS GERAIS</strong>
-        <span>Cuidar de cada vida, transformar cada futuro.</span>
-      </div>
-    </div>
-    <p class="pdf-institution">Hospital João XXIII · Belo Horizonte — MG</p>
-    <p class="pdf-eyebrow">Portal de Escalas · Documento de trabalho</p>
-    <h1>Proposta de escala</h1>
-    <div class="pdf-meta">
-      <span><b>Unidade:</b> ${escapeHtml(unit?.name || "USI Adulto")}</span>
-      <span><b>Turno:</b> ${escapeHtml(shift?.name || "—")}</span>
-      <span><b>Competência:</b> ${escapeHtml(competence)}</span>
-    </div>
-    <div class="pdf-meta">
-      <span><b>Documento:</b> ${escapeHtml(proposalVersion)}</span>
-      <span><b>Gerado em:</b> ${escapeHtml(generatedAt)}</span>
-    </div>
-    <span class="pdf-status">PENDENTE DE REVISÃO · NÃO PUBLICADA</span>
-  </header>
-  <main class="pdf-content">${preview.innerHTML}</main>
-  <footer class="pdf-footer">
-    <strong>ATENÇÃO:</strong> este documento representa uma proposta automática para conferência da superadmin.
-    Não é escala oficial, não foi aprovada e não autoriza publicação ou execução de plantões.
-  </footer>
-  <script>
-    window.addEventListener("load", async function () {
-      const logo = document.querySelector(".pdf-brand img");
-      if (logo && !logo.hidden && !logo.complete) {
-        await new Promise(resolve => {
-          logo.addEventListener("load", resolve, { once: true });
-          logo.addEventListener("error", resolve, { once: true });
+    const endDate = new Date(weekStart + "T12:00:00");
+    endDate.setDate(endDate.getDate() + 6);
+    const endKey = endDate.getFullYear() + "-" +
+      String(endDate.getMonth()+1).padStart(2,"0") + "-" +
+      String(endDate.getDate()).padStart(2,"0");
+    selectedDays = allDays.filter(day => day.work_date >= weekStart && day.work_date <= endKey);
+    periodTitle = "Escala semanal";
+    paper = "A4 landscape";
+  } else if (period === "daily") {
+    const selectedDate = $("pdf-day-date")?.value || $("schedule-date")?.value || monthStart;
+    if (selectedDate.slice(0,7) !== competenceKey) {
+      proposalMessage("Escolha um dia dentro da competência da escala.", "error");
+      return;
+    }
+    selectedDays = allDays.filter(day => day.work_date === selectedDate);
+    if (!selectedDays.length) {
+      proposalMessage("Não há dados da proposta para o dia escolhido.", "error");
+      return;
+    }
+    periodTitle = "Escala diária";
+    paper = "A4 portrait";
+  } else if (period !== "monthly") {
+    proposalMessage("Formato de PDF não reconhecido.", "error");
+    return;
+  }
+
+  const rosterById = new Map();
+  (data.staff_roster || []).forEach(person => rosterById.set(person.staff_id, person));
+  allDays.forEach(day => {
+    (day.assignments || []).forEach(item => {
+      if (item.staff_id && !rosterById.has(item.staff_id)) {
+        rosterById.set(item.staff_id, {
+          staff_id:item.staff_id, nome:item.nome || "Profissional",
+          masp:item.masp || "—", categoria:"", expected_shifts:null
         });
       }
-      if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      window.focus();
-      window.print();
     });
-  </script>
-</body>
-</html>`;
+    if (day.material?.staff_id && !rosterById.has(day.material.staff_id)) {
+      rosterById.set(day.material.staff_id, {
+        staff_id:day.material.staff_id, nome:day.material.nome || "Profissional",
+        masp:day.material.masp || "—", categoria:"", expected_shifts:null
+      });
+    }
+  });
+  const roster = [...rosterById.values()].sort((a,b) =>
+    normalizedName(a.nome).localeCompare(normalizedName(b.nome))
+  );
+  const availabilityByDate = new Map(
+    (data.availability_snapshot || []).map(day => [
+      day.work_date,
+      new Map((day.markers || []).map(item => [item.staff_id,item]))
+    ])
+  );
+  const assignedByDate = new Map();
+  const allocatedCounts = new Map();
+  allDays.forEach(day => {
+    const assigned = new Map();
+    (day.assignments || []).forEach(item => {
+      if (!item.staff_id) return;
+      assigned.set(item.staff_id,item.post_code);
+      allocatedCounts.set(item.staff_id,(allocatedCounts.get(item.staff_id)||0)+1);
+    });
+    if (day.material?.staff_id) {
+      assigned.set(day.material.staff_id,"CM");
+      allocatedCounts.set(day.material.staff_id,(allocatedCounts.get(day.material.staff_id)||0)+1);
+    }
+    assignedByDate.set(day.work_date,assigned);
+  });
+
+  const dayNumber = date => String(Number(date.slice(8,10))).padStart(2,"0");
+  const cellFor = (date,staffId) => {
+    const assignment = assignedByDate.get(date)?.get(staffId);
+    if (assignment) {
+      return assignment === "CM" ? "CM" : String(assignment).replace(/^USI-/,"");
+    }
+    const source = availabilityByDate.get(date)?.get(staffId);
+    if (!source) return "";
+    if (source.marker === "X" && source.status === "pending") return "X*";
+    if (source.marker === "X" && source.status === "available") return "";
+    return source.marker || "";
+  };
+
+  const competence = new Date(String(schedule.competence).slice(0,10)+"T12:00:00")
+    .toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
+  const generatedAt = new Date(data.generated_at || Date.now()).toLocaleString("pt-BR");
+  const proposalLabel = lastProposal.proposalVersion
+    ? "Proposta v" + lastProposal.proposalVersion : "Prévia não salva";
+  const stateLabel = lastProposal.proposalVersion
+    ? "PENDENTE DE REVISÃO · NÃO PUBLICADA" : "PRÉVIA DE SIMULAÇÃO · NÃO SALVA";
+  const filename = ["escala",unit.code,shift.code,competenceKey,period].join("-").toLowerCase();
+  const printWindow = window.open("","_blank");
+  if (!printWindow) {
+    proposalMessage("O navegador bloqueou a janela do PDF. Permita pop-ups para este portal e tente novamente.","error");
+    return;
+  }
+
+  const header =
+    '<header class="pdf-header">' +
+      '<div class="pdf-institution">FUNDAÇÃO HOSPITALAR DO ESTADO DE MINAS GERAIS · FHEMIG</div>' +
+      '<div class="pdf-hospital">HOSPITAL JOÃO XXIII · BELO HORIZONTE — MG</div>' +
+      '<div class="pdf-heading-row"><div><p class="pdf-eyebrow">PORTAL DE ESCALAS · DOCUMENTO DE TRABALHO</p>' +
+      '<h1>'+escapeHtml(periodTitle)+'</h1></div><div class="pdf-document-id"><b>'+escapeHtml(proposalLabel)+'</b>' +
+      '<span>'+escapeHtml(competence)+'</span></div></div>' +
+      '<div class="pdf-meta"><span><b>Unidade:</b> '+escapeHtml(unit.name)+'</span>' +
+      '<span><b>Turno:</b> '+escapeHtml(shift.name)+'</span>' +
+      '<span><b>Competência:</b> '+escapeHtml(competence)+'</span>' +
+      '<span><b>Gerado em:</b> '+escapeHtml(generatedAt)+'</span></div>' +
+      '<span class="pdf-status">'+escapeHtml(stateLabel)+'</span>' +
+    '</header>';
+
+  let bodyHtml = "";
+  if (period === "monthly" || period === "weekly") {
+    const headers = selectedDays.map(day => '<th>'+dayNumber(day.work_date)+'</th>').join("");
+    const rows = roster.map(person => {
+      const allocated = allocatedCounts.get(person.staff_id) || 0;
+      const cells = selectedDays.map(day => {
+        const code = cellFor(day.work_date,person.staff_id);
+        let css = "cell-empty";
+        if (code === "CM") css = "cell-material";
+        else if (code === "X*") css = "cell-review";
+        else if (["FO","FR","LM","LMA","APA","REM","TP","REV"].includes(code)) css = "cell-status";
+        else if (code) css = "cell-post";
+        return '<td class="'+css+'">'+escapeHtml(code)+'</td>';
+      }).join("");
+      return '<tr><td class="person-cell"><b>'+escapeHtml(person.nome)+'</b>' +
+        '<small>MASP '+escapeHtml(person.masp)+' · '+escapeHtml(person.categoria || "")+'</small></td>' +
+        '<td class="number-cell">'+escapeHtml(person.expected_shifts ?? "—")+'</td>' +
+        '<td class="number-cell">'+allocated+'</td>'+cells+'</tr>';
+    }).join("");
+    const totalAssigned = selectedDays.reduce((sum,day) =>
+      sum+(day.assignments || []).filter(item=>item.staff_id).length+(day.material?.staff_id ? 1 : 0),0);
+    const range = period === "monthly"
+      ? "DIAS 01 A "+dayNumber(selectedDays[selectedDays.length-1].work_date)
+      : "DIAS "+dayNumber(selectedDays[0].work_date)+" A "+dayNumber(selectedDays[selectedDays.length-1].work_date);
+    bodyHtml =
+      '<div class="pdf-range">'+range+'</div>' +
+      '<div class="pdf-summary"><span><b>'+roster.length+'</b> profissionais vinculados</span>' +
+      '<span><b>'+selectedDays.length+'</b> dias exibidos</span>' +
+      '<span><b>'+totalAssigned+'</b> alocações propostas no período</span></div>' +
+      '<table class="matrix '+(period === "monthly" ? "matrix-month" : "matrix-week")+'"><thead><tr>' +
+      '<th class="person-heading">PROFISSIONAL / MASP</th><th class="total-heading">META</th>' +
+      '<th class="total-heading">ALOC.</th>'+headers+'</tr></thead><tbody>'+rows+'</tbody></table>' +
+      '<div class="pdf-legend"><b>LEGENDA:</b> 01–11 = postos USI-01 a USI-11 · CM = circulação/material · ' +
+      'FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento · ' +
+      'REM = remanejamento manual · TP = troca em revisão · REV = conferir · X* = X pendente de revisão. ' +
+      'Célula vazia = sem alocação proposta. A meta e a alocação são contagens independentes.</div>';
+  } else {
+    const day = selectedDays[0];
+    const rows = (day.assignments || []).map(item =>
+      '<tr><td><b>'+escapeHtml(item.post_code)+'</b><small>Assistência direta</small></td>' +
+      '<td>'+(item.staff_id ? escapeHtml(item.nome || "—") : '<span class="not-filled">SEM COBERTURA</span>')+'</td>' +
+      '<td>'+escapeHtml(item.masp || "—")+'</td></tr>'
+    ).join("");
+    const materialRow = '<tr><td><b>USI-CIRC-MAT</b><small>Circulação / material</small></td>' +
+      '<td>'+(day.material?.staff_id ? escapeHtml(day.material.nome || "—") : '<span class="not-filled">SEM INDICAÇÃO</span>')+'</td>' +
+      '<td>'+escapeHtml(day.material?.masp || "—")+'</td></tr>';
+    const extras = (day.extras || []).map(person =>
+      escapeHtml(person.nome)+' ('+escapeHtml(person.masp)+')').join(" · ") || "Nenhum";
+    const rem = (day.rem || []).map(person =>
+      escapeHtml(person.nome)+' ('+escapeHtml(person.masp)+')').join(" · ") || "Nenhum";
+    const reviews = (day.review || []).map(item =>
+      escapeHtml(item.marker)+' — '+escapeHtml(item.staff?.nome || "sem identificação")+
+      ' — linha '+escapeHtml(item.source_row || "—")).join("<br>") || "Nenhuma";
+    const notes = (day.notes || []).map(escapeHtml).join("<br>") || "Nenhuma";
+    bodyHtml =
+      '<div class="pdf-range">'+escapeHtml(new Date(day.work_date+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}))+'</div>' +
+      '<table class="daily"><thead><tr><th>POSTO</th><th>PROFISSIONAL PROPOSTO</th><th>MASP</th></tr></thead>' +
+      '<tbody>'+rows+materialRow+'</tbody></table>' +
+      '<div class="daily-notes"><section><b>Disponíveis fora dos postos diretos</b><p>'+extras+'</p></section>' +
+      '<section><b>REM — fora da distribuição automática</b><p>'+rem+'</p></section>' +
+      '<section><b>Marcações para conferência</b><p>'+reviews+'</p></section>' +
+      '<section><b>Observações do motor</b><p>'+notes+'</p></section></div>';
+  }
+
+  const styles =
+    '<style>' +
+    '@page{size:'+paper+';margin:8mm}*{box-sizing:border-box}body{margin:0;color:#1b2927;font:9px Arial,Helvetica,sans-serif}' +
+    '.pdf-header{border-bottom:2px solid #123b36;padding-bottom:7px;margin-bottom:7px}' +
+    '.pdf-institution{font-size:10px;font-weight:700;letter-spacing:.35px;color:#123b36}' +
+    '.pdf-hospital{margin-top:2px;color:#53615c;font-size:8px;letter-spacing:.6px}' +
+    '.pdf-heading-row{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:8px}' +
+    '.pdf-eyebrow{margin:0 0 3px;color:#8a7b4d;font-size:7px;font-weight:700;letter-spacing:1px}' +
+    'h1{margin:0;font-size:17px}.pdf-document-id{text-align:right;color:#53615c;font-size:8px}' +
+    '.pdf-document-id b,.pdf-document-id span{display:block}.pdf-meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;color:#53615c;font-size:8px}' +
+    '.pdf-status{display:inline-block;margin-top:5px;padding:3px 6px;border:1px solid #d9cfae;border-radius:3px;color:#66572b;font-size:7px;font-weight:700}' +
+    '.pdf-range{margin:5px 0;color:#344640;font-size:9px;font-weight:700}.pdf-summary{display:flex;gap:16px;margin:5px 0 7px;color:#53615c;font-size:7px}' +
+    '.pdf-summary b{color:#123b36;font-size:10px}.matrix,.daily{width:100%;border-collapse:collapse;table-layout:fixed}' +
+    '.matrix th,.matrix td,.daily th,.daily td{border:1px solid #dce3df;padding:3px 2px;text-align:center;vertical-align:middle}' +
+    '.matrix thead,.daily thead{display:table-header-group}.matrix th{background:#eaf0ed;color:#40534c;font-size:7px}' +
+    '.matrix td{font-size:'+(period === "monthly" ? "6" : "8")+'px}.matrix .person-heading{width:'+(period === "monthly" ? "53mm" : "64mm")+';text-align:left;padding-left:5px}' +
+    '.matrix .total-heading{width:'+(period === "monthly" ? "9mm" : "12mm")+'}.matrix-month th:not(.person-heading):not(.total-heading){width:8.2mm}' +
+    '.matrix .person-cell{text-align:left;padding:3px 5px;overflow-wrap:anywhere}.matrix .person-cell b{display:block;font-size:7px;line-height:1.2}' +
+    '.matrix .person-cell small{display:block;margin-top:1px;color:#65736d;font-size:6px}.number-cell{font-weight:700;color:#344640}' +
+    '.cell-post{background:#edf5f1;color:#123b36;font-weight:700}.cell-material{background:#f3f0e5;color:#76612e;font-weight:700}' +
+    '.cell-status{color:#65736d}.cell-review{color:#a24c19;background:#fff5e9;font-weight:700}.cell-empty{color:#bbc4bf}' +
+    '.pdf-legend{margin-top:7px;padding:6px;border:1px solid #dce3df;color:#53615c;font-size:6.5px;line-height:1.5}' +
+    '.daily th{background:#eaf0ed;color:#40534c;text-align:left;font-size:8px;padding:6px}.daily td{text-align:left;font-size:9px;padding:6px}' +
+    '.daily td:first-child{width:32%}.daily td small{display:block;color:#65736d;margin-top:2px}.not-filled{color:#9a6416;font-size:8px;font-weight:700}' +
+    '.daily-notes{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:10px}.daily-notes section{border:1px solid #dce3df;padding:7px}' +
+    '.daily-notes b{font-size:8px}.daily-notes p{margin:4px 0 0;color:#53615c;font-size:8px;line-height:1.4}' +
+    '.pdf-footer{margin-top:8px;padding-top:5px;border-top:1px solid #dce3df;color:#71807a;font-size:7px;line-height:1.4}' +
+    '.pdf-footer strong{color:#8a5b21}tr{break-inside:avoid;page-break-inside:avoid}@media print{thead{display:table-header-group}}' +
+    '</style>';
+  const footer =
+    '<footer class="pdf-footer"><strong>ATENÇÃO:</strong> documento de trabalho gerado automaticamente para conferência da superadmin. ' +
+    'Não é escala oficial, não foi aprovada e não autoriza publicação ou execução de plantões. ' +
+    '<span style="float:right">Gerado em '+escapeHtml(generatedAt)+'</span></footer>';
+  const printHtml = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escapeHtml(filename)+'</title>' +
+    styles+'</head><body>'+header+'<main>'+bodyHtml+'</main>'+footer+
+    '<script>window.addEventListener("load",function(){window.focus();window.print();});</script></body></html>';
 
   printWindow.document.open();
   printWindow.document.write(printHtml);
   printWindow.document.close();
-  proposalMessage("Prévia de impressão aberta. No destino da impressão, escolha “Salvar como PDF”.", "success");
+  proposalMessage("PDF "+(period==="monthly"?"mensal":period==="weekly"?"semanal":"diário")+
+    " preparado. Escolha “Salvar como PDF” no destino da impressão.","success");
 }
-
 async function saveScheduleProposal() {
   if (!lastProposal) {
     proposalMessage("Execute uma nova simulação antes de salvar a proposta.", "error");
