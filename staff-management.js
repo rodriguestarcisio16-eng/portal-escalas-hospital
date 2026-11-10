@@ -104,8 +104,40 @@ function renderManagementShell() {
               </div>
               <p class="staff-month-note">Carga contratual semanal, horas registradas na competência e plantões previstos são três informações independentes. O portal não calcula uma a partir da outra.</p>
               <p id="staff-month-note" class="staff-month-note">Sem competência selecionada.</p>
+              <div class="staff-period-panel">
+                <div class="staff-form-section-head">
+                  <h6>Lançar afastamento por período</h6>
+                  <small>Informe o tipo e as datas. O portal preencherá o intervalo no calendário; depois clique em Salvar alterações para gravar.</small>
+                </div>
+                <div class="staff-period-grid">
+                  <div class="field-group">
+                    <label for="staff-period-code">Situação</label>
+                    <select id="staff-period-code">
+                      <option value="FR">FR — Férias</option>
+                      <option value="LM">LM — Licença médica</option>
+                      <option value="LMA">LMA — Licença maternidade</option>
+                      <option value="APA">APA — Afastamento preliminar</option>
+                      <option value="FO">FO — Folga</option>
+                      <option value="REV">REV — Outro afastamento / conferir</option>
+                    </select>
+                  </div>
+                  <div class="field-group">
+                    <label for="staff-period-start">Data inicial</label>
+                    <input id="staff-period-start" type="date" />
+                  </div>
+                  <div class="field-group">
+                    <label for="staff-period-end">Data final</label>
+                    <input id="staff-period-end" type="date" />
+                  </div>
+                  <div class="field-group staff-period-action">
+                    <label>&nbsp;</label>
+                    <button id="staff-apply-period" type="button" class="secondary-btn">Aplicar período</button>
+                  </div>
+                </div>
+                <p id="staff-period-note" class="staff-month-note">Selecione uma competência e um intervalo dentro do mês.</p>
+              </div>
               <div id="staff-calendar" class="staff-calendar"><p class="muted">Selecione uma competência para abrir o calendário.</p></div>
-              <div class="staff-marker-legend"><b>Marcações:</b> X = disponível · FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento preliminar · REM = remanejamento manual · TP/REV = revisão. Campo vazio significa sem marcação; se já houver registro no dia, ele passa para REV/revisão, preservando a origem.</div>
+              <div class="staff-marker-legend"><b>Marcações:</b> X = disponível · FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento preliminar · REM = remanejamento manual · TP/REV = revisão. Períodos aplicados são gravados ao salvar as alterações.</div>
             </div>
             <div class="staff-form-actions">
               <button id="staff-reset" type="button" class="secondary-btn">Limpar formulário</button>
@@ -127,6 +159,7 @@ function renderManagementShell() {
   $("staff-reset").addEventListener("click", () => resetForm(true));
   $("staff-search").addEventListener("input", renderDirectory);
   $("staff-schedule").addEventListener("change", () => loadSelectedMonth());
+  $("staff-apply-period").addEventListener("click", () => applyPeriodToCalendar());
   $("staff-active").addEventListener("change", (event) => {
     if (!event.target.checked) notify("Ao inativar o cadastro, os vínculos ativos também serão desativados. O histórico e as escalas anteriores serão preservados.", "info");
   });
@@ -172,6 +205,75 @@ function renderDirectory() {
   });
 }
 
+function setPeriodControlsEnabled(enabled, schedule = null) {
+  ["staff-period-code", "staff-period-start", "staff-period-end", "staff-apply-period"].forEach(id => {
+    const control = $(id);
+    if (control) control.disabled = !enabled;
+  });
+  const start = $("staff-period-start");
+  const end = $("staff-period-end");
+  if (schedule) {
+    const first = String(schedule.competence).slice(0, 10);
+    const [year, month] = first.split("-").map(Number);
+    const last = year + "-" + String(month).padStart(2, "0") + "-" +
+      String(new Date(year, month, 0).getDate()).padStart(2, "0");
+    if (start) { start.min = first; start.max = last; }
+    if (end) { end.min = first; end.max = last; }
+  }
+}
+
+function applyPeriodToCalendar() {
+  const schedule = scheduleFor($("staff-schedule")?.value);
+  if (!schedule || schedule.status !== "draft") {
+    notify("Selecione uma competência em rascunho antes de lançar um período.", "error");
+    return;
+  }
+  const code = $("staff-period-code")?.value;
+  const start = $("staff-period-start")?.value;
+  const end = $("staff-period-end")?.value;
+  if (!code || !start || !end) {
+    $("staff-period-note").textContent = "Informe a situação, a data inicial e a data final.";
+    return notify("Preencha o tipo de afastamento e as duas datas.", "error");
+  }
+  if (start > end) return notify("A data inicial não pode ser posterior à data final.", "error");
+  const first = String(schedule.competence).slice(0, 10);
+  const [year, month] = first.split("-").map(Number);
+  const last = year + "-" + String(month).padStart(2, "0") + "-" +
+    String(new Date(year, month, 0).getDate()).padStart(2, "0");
+  if (start < first || end > last) {
+    return notify("O período precisa estar inteiramente dentro da competência selecionada.", "error");
+  }
+
+  const controls = [...document.querySelectorAll("[data-day-marker]")];
+  const selected = controls.filter(control => control.dataset.dayMarker >= start && control.dataset.dayMarker <= end);
+  if (!selected.length) return notify("Não encontrei dias do intervalo no calendário atual.", "error");
+  const conflicts = selected.filter(control => control.value && control.value !== code);
+  if (conflicts.length) {
+    const sample = conflicts.slice(0, 5).map(control =>
+      control.dataset.dayMarker.slice(8, 10) + " (" + control.value + ")"
+    ).join(", ");
+    const more = conflicts.length > 5 ? " e mais " + (conflicts.length - 5) + " dia(s)" : "";
+    const accepted = window.confirm(
+      "O intervalo contém " + conflicts.length + " dia(s) com marcação existente: " +
+      sample + more + ".\n\nSubstituir essas marcações por " + code +
+      "? A alteração será registrada como manual quando você salvar o profissional."
+    );
+    if (!accepted) {
+      $("staff-period-note").textContent = "Período não aplicado. As marcações existentes foram mantidas.";
+      return;
+    }
+  }
+  selected.forEach(control => {
+    control.value = code;
+    control.closest(".staff-day-cell")?.classList.add("period-filled");
+  });
+  $("staff-period-note").textContent =
+    code + " aplicado de " + new Date(start + "T12:00:00").toLocaleDateString("pt-BR") +
+    " a " + new Date(end + "T12:00:00").toLocaleDateString("pt-BR") +
+    " (" + selected.length + " dia(s)). Clique em Salvar alterações para gravar.";
+  notify("Período aplicado ao calendário. Salve o cadastro para registrar as alterações.", "success");
+}
+
 function renderCalendar(schedule, values = new Map()) {
   const calendar = $("staff-calendar");
   if (!schedule) {
@@ -209,6 +311,7 @@ async function loadSelectedMonth() {
     $("staff-expected-shifts").disabled = true;
     $("staff-competence-hours").disabled = true;
     renderCalendar(null);
+    setPeriodControlsEnabled(false);
     return;
   }
   if (schedule.status !== "draft") {
@@ -216,10 +319,12 @@ async function loadSelectedMonth() {
     $("staff-calendar").innerHTML = '<p class="muted">Esta competência não está em rascunho e não pode ser editada.</p>';
     $("staff-expected-shifts").disabled = true;
     $("staff-competence-hours").disabled = true;
+    setPeriodControlsEnabled(false);
     return;
   }
   $("staff-expected-shifts").disabled = false;
   $("staff-competence-hours").disabled = false;
+  setPeriodControlsEnabled(true, schedule);
   if (!selectedStaffId) {
     $("staff-expected-shifts").value = "";
     $("staff-competence-hours").value = "";
