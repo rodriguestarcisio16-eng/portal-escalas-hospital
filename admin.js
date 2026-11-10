@@ -1076,7 +1076,7 @@ async function simulateSelectedSchedule() {
   lastProposal = null;
   $("generate-proposal").disabled = true;
   $("generate-proposal").textContent = "Salvar para revisão";
-  $("export-proposal-pdf").disabled = true;
+  ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = true; });
   const button = $("simulate-proposal");
   button.disabled = true;
   button.textContent = "Simulando...";
