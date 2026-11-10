@@ -692,11 +692,11 @@ function renderUsiProposal(report, schedule, unit, shift) {
     days: report.days.map(day => ({
       work_date: day.date,
       assignments: day.assignments.map(item => ({
-        post_code:item.code, staff_id:item.staff?.id ?? null,
+        post_code:item.code, post_name:item.name, staff_id:item.staff?.id ?? null,
         nome:item.staff?.nome ?? null, masp:item.staff?.masp ?? null
       })),
       material: day.material
-        ? {post_code:"USI-CIRC-MAT",staff_id:day.material.id,nome:day.material.nome,masp:day.material.masp}
+        ? {post_code:"USI-CIRC-MAT",post_name:"Circulação e sala de material",staff_id:day.material.id,nome:day.material.nome,masp:day.material.masp}
         : null,
       extras: day.extras.map(person => ({
         staff_id: person.id, nome: person.nome, masp: person.masp
@@ -925,8 +925,14 @@ function exportProposalPdf(period = "monthly") {
   let bodyHtml = "";
   if (period === "monthly" || period === "weekly") {
     const headers = selectedDays.map(day => '<th>'+dayNumber(day.work_date)+'</th>').join("");
-    const rows = roster.map(person => {
-      const allocated = allocatedCounts.get(person.staff_id) || 0;
+    const periodCounts = new Map();
+    selectedDays.forEach(day => {
+      (day.assignments || []).forEach(item => { if (item.staff_id) periodCounts.set(item.staff_id,(periodCounts.get(item.staff_id)||0)+1); });
+      if (day.material?.staff_id) periodCounts.set(day.material.staff_id,(periodCounts.get(day.material.staff_id)||0)+1);
+    });
+    const periodRoster = roster.filter(person => (periodCounts.get(person.staff_id)||0) > 0);
+    const rows = periodRoster.map(person => {
+      const allocated = periodCounts.get(person.staff_id) || 0;
       const cells = selectedDays.map(day => {
         const code = cellFor(day.work_date,person.staff_id);
         let css = "cell-empty";
