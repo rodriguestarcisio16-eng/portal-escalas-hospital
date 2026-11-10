@@ -127,14 +127,18 @@ function renderSkeleton() {
           <div id="post-status" class="notice small-notice">Aguardando conferência da estrutura.</div>
           <div class="generator-box">
             <div><b>Motor de distribuição</b><p id="generator-note">Simule a distribuição da unidade e turno selecionados. A simulação não grava nem publica dados.</p></div>
-            <div class="generator-actions">
-              <button id="simulate-proposal" class="primary-btn compact-btn" type="button">Simular mês</button>
-              <button id="generate-proposal" class="secondary-btn" type="button" disabled>Salvar para revisão</button>
-              <button id="pdf-monthly" class="secondary-btn" type="button" disabled>PDF mensal</button>
-              <label class="pdf-date-control">Semana a partir de <input id="pdf-week-start" type="date" min="${monthStart}" max="${monthEnd}" value="${monthStart}" /></label>
-              <button id="pdf-weekly" class="secondary-btn" type="button" disabled>PDF semanal</button>
-              <label class="pdf-date-control">Dia <input id="pdf-day-date" type="date" min="${monthStart}" max="${monthEnd}" value="${monthStart}" /></label>
-              <button id="pdf-daily" class="secondary-btn" type="button" disabled>PDF diário</button>
+            <div class="generator-controls">
+              <div class="generator-actions">
+                <button id="simulate-proposal" class="primary-btn compact-btn" type="button">Simular mês</button>
+                <button id="generate-proposal" class="secondary-btn" type="button" disabled>Salvar para revisão</button>
+              </div>
+              <div class="pdf-export-controls">
+                <button id="pdf-monthly" class="secondary-btn" type="button" disabled>PDF mensal</button>
+                <label class="pdf-date-control">Semana a partir de <input id="pdf-week-start" type="date" min="${monthStart}" max="${monthEnd}" value="${monthStart}" /></label>
+                <button id="pdf-weekly" class="secondary-btn" type="button" disabled>PDF semanal</button>
+                <label class="pdf-date-control">Dia <input id="pdf-day-date" type="date" min="${monthStart}" max="${monthEnd}" value="${monthStart}" /></label>
+                <button id="pdf-daily" class="secondary-btn" type="button" disabled>PDF diário</button>
+              </div>
             </div>
           </div>
         </section>
