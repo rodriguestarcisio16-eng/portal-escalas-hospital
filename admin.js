@@ -1276,7 +1276,16 @@ async function simulateSelectedSchedule() {
         targetRemaining(person.id) > 0 &&
         bedPosts.some(post => allowedForPost(person.id, post))
       );
+      // Primeiro protege os profissionais com menos opções de posto.
+      // Depois equilibra as alocações em relação à meta mensal de cada um.
+      const postOptionCount = new Map(directCandidates.map(person => [
+        person.id,
+        bedPosts.filter(post => allowedForPost(person.id, post)).length
+      ]));
       directCandidates.sort((a,b) => {
+        const oa = postOptionCount.get(a.id) ?? 99;
+        const ob = postOptionCount.get(b.id) ?? 99;
+        if (oa !== ob) return oa - ob;
         const ca = assignmentCounts.get(a.id) || 0;
         const cb = assignmentCounts.get(b.id) || 0;
         const ta = Math.max(1, Number(targetByStaff.get(a.id)?.expected_shifts) || 1);
