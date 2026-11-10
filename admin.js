@@ -130,7 +130,11 @@ function renderSkeleton() {
             <div class="generator-actions">
               <button id="simulate-proposal" class="primary-btn compact-btn" type="button">Simular mês</button>
               <button id="generate-proposal" class="secondary-btn" type="button" disabled>Salvar para revisão</button>
-              <button id="export-proposal-pdf" class="secondary-btn" type="button" disabled>Gerar PDF</button>
+              <button id="pdf-monthly" class="secondary-btn" type="button" disabled>PDF mensal</button>
+              <label class="pdf-date-control">Semana a partir de <input id="pdf-week-start" type="date" min="${monthStart}" max="${monthEnd}" value="${monthStart}" /></label>
+              <button id="pdf-weekly" class="secondary-btn" type="button" disabled>PDF semanal</button>
+              <label class="pdf-date-control">Dia <input id="pdf-day-date" type="date" min="${monthStart}" max="${monthEnd}" value="${monthStart}" /></label>
+              <button id="pdf-daily" class="secondary-btn" type="button" disabled>PDF diário</button>
             </div>
           </div>
         </section>
@@ -148,12 +152,16 @@ function renderSkeleton() {
   $("analyze-month").addEventListener("click", () => analyzeMonth());
   $("simulate-proposal").addEventListener("click", () => simulateSelectedSchedule());
   $("generate-proposal").addEventListener("click", () => saveScheduleProposal());
-  $("export-proposal-pdf").addEventListener("click", () => exportProposalPdf());
+  $("pdf-monthly").addEventListener("click", () => exportProposalPdf("monthly"));
+  $("pdf-weekly").addEventListener("click", () => exportProposalPdf("weekly"));
+  $("pdf-daily").addEventListener("click", () => exportProposalPdf("daily"));
+  $("schedule-date").addEventListener("change", () => { $("pdf-day-date").value = $("schedule-date").value; });
+  const setPdfButtons = (disabled) => ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = disabled; });
   const invalidateProposal = () => {
     lastProposal = null;
     $("generate-proposal").disabled = true;
     $("generate-proposal").textContent = "Salvar para revisão";
-    $("export-proposal-pdf").disabled = true;
+    setPdfButtons(true);
   };
   $("schedule-unit").addEventListener("change", () => { invalidateProposal(); loadDay(); loadSavedProposalHistory(); });
   $("schedule-shift").addEventListener("change", () => { invalidateProposal(); loadDay(); loadSavedProposalHistory(); });
@@ -615,7 +623,7 @@ function renderBlockedUtiProposal() {
     $("generate-proposal").disabled = true;
     $("generate-proposal").textContent = "Salvar para revisão";
   }
-  if ($("export-proposal-pdf")) $("export-proposal-pdf").disabled = true;
+  ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = true; });
   const items = [
     ["Rodízio incompleto", "A UTI tem 22 postos diretos, mas a sequência dos profissionais de 40h lista somente 21. O leito 21 (UTI-11) não aparece na sequência."],
     ["Dois apoios, ciclo sem distinção", "A estrutura tem APOIO-1 (bloco A) e APOIO-2 (bloco B), mas o ciclo determina apenas “APOIO” após as sequências ímpares e pares. Não vou escolher qual dos dois usar."],
@@ -684,11 +692,11 @@ function renderUsiProposal(report, schedule, unit, shift) {
     days: report.days.map(day => ({
       work_date: day.date,
       assignments: day.assignments.map(item => ({
-        post_code: item.code,
-        staff_id: item.staff?.id ?? null
+        post_code:item.code, staff_id:item.staff?.id ?? null,
+        nome:item.staff?.nome ?? null, masp:item.staff?.masp ?? null
       })),
       material: day.material
-        ? { post_code: "USI-CIRC-MAT", staff_id: day.material.id }
+        ? {post_code:"USI-CIRC-MAT",staff_id:day.material.id,nome:day.material.nome,masp:day.material.masp}
         : null,
       extras: day.extras.map(person => ({
         staff_id: person.id, nome: person.nome, masp: person.masp
@@ -703,7 +711,9 @@ function renderUsiProposal(report, schedule, unit, shift) {
       })),
       notes: day.notes
     })),
-    global_issues: report.globalIssues
+    staff_roster:report.staffRoster,
+    availability_snapshot:report.availabilitySnapshot,
+    global_issues:report.globalIssues
   };
   const metrics = {
     algorithm: "USI_BALANCED_V1",
@@ -717,7 +727,7 @@ function renderUsiProposal(report, schedule, unit, shift) {
   lastProposal = { scheduleId: schedule.id, proposalData, metrics };
   $("generate-proposal").disabled = false;
   $("generate-proposal").textContent = "Salvar para revisão";
-  $("export-proposal-pdf").disabled = false;
+  ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { $(id).disabled = false; });
 
   $("proposal-preview").innerHTML =
     '<div class="engine-summary-grid">' +
@@ -1221,7 +1231,17 @@ async function simulateSelectedSchedule() {
       });
     }
 
-    const report = {days:reportDays,globalIssues};
+    const staffRoster = staffRows.filter(person => linkedSet.has(person.id)).map(person => ({
+      staff_id:person.id, nome:person.nome, masp:person.masp, categoria:person.categoria,
+      expected_shifts:targetByStaff.get(person.id)?.expected_shifts ?? null
+    })).sort((a,b)=>normalizedName(a.nome).localeCompare(normalizedName(b.nome)));
+    const availabilitySnapshot = Array.from(availabilityByDay.entries()).map(([workDate,rows])=>({
+      work_date:workDate,
+      markers:rows.filter(row=>row.staff_id && linkedSet.has(row.staff_id)).map(row=>({
+        staff_id:row.staff_id, marker:String(row.original_marker||"").trim().toUpperCase(), status:row.availability_status
+      }))
+    }));
+    const report = {days:reportDays,globalIssues,staffRoster,availabilitySnapshot};
     renderUsiProposal(report, schedule, unit, shift);
   } catch (error) {
     $("proposal-preview").innerHTML = '<p class="empty-cell">Não foi possível concluir a simulação. Nenhuma alocação foi gravada.</p>';
