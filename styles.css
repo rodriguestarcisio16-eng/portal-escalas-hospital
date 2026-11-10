@@ -229,3 +229,17 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
 .saved-proposal-item b{font:700 10px Manrope;color:var(--ink)}
 .saved-proposal-item small{font-size:9px;color:var(--muted);line-height:1.4}
 .saved-proposal-item .status-chip{align-self:flex-start}
+
+.generator-controls{display:flex;flex-direction:column;gap:9px;min-width:0;flex:1;align-items:flex-end}
+.pdf-export-controls{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;width:100%}
+.pdf-export-controls button{font-size:10px!important;padding:8px 10px!important}
+.pdf-date-control{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:9px;white-space:nowrap}
+.pdf-date-control input{width:126px;min-width:0;padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);font:10px "DM Sans",sans-serif}
+.pdf-export-controls button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:650px){
+  .generator-controls{width:100%;align-items:stretch}
+  .generator-actions,.pdf-export-controls{justify-content:stretch;width:100%}
+  .generator-actions button,.pdf-export-controls button{flex:1 1 44%;width:auto!important}
+  .pdf-date-control{flex:1 1 100%;justify-content:space-between}
+  .pdf-date-control input{width:58%}
+}
