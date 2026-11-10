@@ -824,6 +824,12 @@ function exportProposalPdf() {
     body { margin: 0; color: #1b2927; font: 10px Arial, Helvetica, sans-serif; }
     h1 { margin: 0 0 4px; font-size: 19px; letter-spacing: .2px; }
     .pdf-header { border-bottom: 2px solid #123b36; padding-bottom: 10px; margin-bottom: 12px; }
+    .pdf-brand { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 11px; }
+    .pdf-brand img { display: block; width: 142px; max-height: 58px; object-fit: contain; object-position: left center; }
+    .pdf-brand-copy { flex: 1; text-align: right; }
+    .pdf-brand-copy strong { display: block; color: #087fa8; font-size: 10px; letter-spacing: .25px; }
+    .pdf-brand-copy span { display: block; margin-top: 3px; color: #5c696d; font-size: 8px; font-style: italic; }
+    .pdf-institution { margin: 0 0 5px; color: #53615c; font-size: 8px; letter-spacing: .4px; text-transform: uppercase; }
     .pdf-eyebrow { margin: 0 0 5px; color: #8a7b4d; font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
     .pdf-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 7px; color: #53615c; font-size: 10px; }
     .pdf-status { display: inline-block; margin-top: 8px; padding: 4px 7px; border: 1px solid #d9cfae; border-radius: 4px; color: #66572b; font-weight: 700; }
@@ -863,6 +869,16 @@ function exportProposalPdf() {
 </head>
 <body>
   <header class="pdf-header">
+    <div class="pdf-brand">
+      <img src="https://seeklogo.com/images/F/FHEMIG-logo-5291357251-seeklogo.com.png"
+           alt="FHEMIG — Fundação Hospitalar do Estado de Minas Gerais"
+           onerror="this.hidden=true">
+      <div class="pdf-brand-copy">
+        <strong>FUNDAÇÃO HOSPITALAR DO ESTADO DE MINAS GERAIS</strong>
+        <span>Cuidar de cada vida, transformar cada futuro.</span>
+      </div>
+    </div>
+    <p class="pdf-institution">Hospital João XXIII · Belo Horizonte — MG</p>
     <p class="pdf-eyebrow">Portal de Escalas · Documento de trabalho</p>
     <h1>Proposta de escala</h1>
     <div class="pdf-meta">
@@ -881,7 +897,20 @@ function exportProposalPdf() {
     <strong>ATENÇÃO:</strong> este documento representa uma proposta automática para conferência da superadmin.
     Não é escala oficial, não foi aprovada e não autoriza publicação ou execução de plantões.
   </footer>
-  <script>window.addEventListener("load", function () { window.focus(); window.print(); });</script>
+  <script>
+    window.addEventListener("load", async function () {
+      const logo = document.querySelector(".pdf-brand img");
+      if (logo && !logo.hidden && !logo.complete) {
+        await new Promise(resolve => {
+          logo.addEventListener("load", resolve, { once: true });
+          logo.addEventListener("error", resolve, { once: true });
+        });
+      }
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      window.focus();
+      window.print();
+    });
+  </script>
 </body>
 </html>`;
 
