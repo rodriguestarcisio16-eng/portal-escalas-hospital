@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js";
-import { initializeAdminWorkspace } from "./admin.js?v=20261110-4";
+import { initializeAdminWorkspace } from "./admin.js?v=20261110-5";
 
 const $ = (id) => document.getElementById(id);
 const screenIds = ["login-screen", "change-screen", "dashboard-screen"];
