@@ -1256,15 +1256,17 @@ async function simulateSelectedSchedule() {
         .map(rule => ({rule, person: staffById.get(rule.staff_id)}))
         .filter(item => item.person && availableNotRem.some(person => person.id === item.person.id));
       let materialChoice = null;
-      if (availablePriority.length) {
-        const first = availablePriority[0];
-        if (targetRemaining(first.person.id) > 0 && allowedForPost(first.person.id, materialPost)) {
-          materialChoice = first.person;
-          assignedIds.add(materialChoice.id);
-          assignmentCounts.set(materialChoice.id, (assignmentCounts.get(materialChoice.id) || 0) + 1);
-        } else {
-          notes.push("O profissional prioritário para circulação/material está disponível, mas sua meta mensal foi atingida ou há conflito de elegibilidade. O posto ficou em branco para revisão.");
-        }
+      const eligiblePriority = availablePriority.find(item =>
+        targetRemaining(item.person.id) > 0 &&
+        allowedForPost(item.person.id, materialPost) &&
+        !assignedIds.has(item.person.id)
+      );
+      if (eligiblePriority) {
+        materialChoice = eligiblePriority.person;
+        assignedIds.add(materialChoice.id);
+        assignmentCounts.set(materialChoice.id, (assignmentCounts.get(materialChoice.id) || 0) + 1);
+      } else if (availablePriority.length) {
+        notes.push("Há profissional(is) da ordem de prioridade disponível(is), mas todos atingiram a meta mensal ou possuem restrição incompatível. Circulação/material ficou em branco para revisão.");
       } else {
         notes.push("Circulação/material permaneceu em branco: nenhum profissional da ordem de prioridade está disponível com meta mensal restante.");
       }
