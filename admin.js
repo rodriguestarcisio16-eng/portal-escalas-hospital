@@ -954,7 +954,7 @@ function exportProposalPdf(period = "monthly") {
       : "DIAS "+dayNumber(selectedDays[0].work_date)+" A "+dayNumber(selectedDays[selectedDays.length-1].work_date);
     bodyHtml =
       '<div class="pdf-range">'+range+'</div>' +
-      '<div class="pdf-summary"><span><b>'+roster.length+'</b> profissionais vinculados</span>' +
+      '<div class="pdf-summary"><span><b>'+periodRoster.length+'</b> profissionais escalados</span>' +
       '<span><b>'+selectedDays.length+'</b> dias exibidos</span>' +
       '<span><b>'+totalAssigned+'</b> alocações propostas no período</span></div>' +
       '<table class="matrix '+(period === "monthly" ? "matrix-month" : "matrix-week")+'"><thead><tr>' +
@@ -967,11 +967,11 @@ function exportProposalPdf(period = "monthly") {
   } else {
     const day = selectedDays[0];
     const rows = (day.assignments || []).map(item =>
-      '<tr><td><b>'+escapeHtml(item.post_code)+'</b><small>Assistência direta</small></td>' +
+      '<tr><td><b>'+escapeHtml(item.post_code)+'</b><small>'+escapeHtml(item.post_name || 'Assistência direta')+'</small></td>' +
       '<td>'+(item.staff_id ? escapeHtml(item.nome || "—") : '<span class="not-filled">SEM COBERTURA</span>')+'</td>' +
       '<td>'+escapeHtml(item.masp || "—")+'</td></tr>'
     ).join("");
-    const materialRow = '<tr><td><b>USI-CIRC-MAT</b><small>Circulação / material</small></td>' +
+    const materialRow = '<tr><td><b>USI-CIRC-MAT</b><small>'+escapeHtml(day.material?.post_name || 'Circulação / material')+'</small></td>' +
       '<td>'+(day.material?.staff_id ? escapeHtml(day.material.nome || "—") : '<span class="not-filled">SEM INDICAÇÃO</span>')+'</td>' +
       '<td>'+escapeHtml(day.material?.masp || "—")+'</td></tr>';
     const extras = (day.extras || []).map(person =>
