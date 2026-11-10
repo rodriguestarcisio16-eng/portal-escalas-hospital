@@ -370,6 +370,7 @@ function resetForm(clearNotice = false) {
   $("staff-expected-shifts").value = "";
   $("staff-competence-hours").value = "";
   $("staff-schedule").value = "";
+  setPeriodControlsEnabled(false);
   $("staff-expected-shifts").disabled = true;
   $("staff-competence-hours").disabled = true;
   // Novo cadastro inicia sem vínculo nem competência presumidos; o responsável escolhe as combinações.
