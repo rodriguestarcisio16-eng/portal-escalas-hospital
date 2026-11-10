@@ -243,3 +243,16 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
   .pdf-date-control{flex:1 1 100%;justify-content:space-between}
   .pdf-date-control input{width:58%}
 }
+.staff-period-panel{margin:12px 0;padding:12px;border:1px solid #e4dcbf;border-radius:9px;background:#fcfaf3}
+.staff-period-panel .staff-form-section-head{margin-bottom:8px}
+.staff-period-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr auto;gap:9px;align-items:end}
+.staff-period-grid .field-group{min-width:0}
+.staff-period-grid label{font-size:9px}
+.staff-period-grid select,.staff-period-grid input{width:100%;min-width:0}
+.staff-period-action button{font-size:10px;padding:9px 12px;white-space:nowrap}
+.staff-period-panel .staff-month-note{margin-bottom:0}
+.staff-period-panel button:disabled,.staff-period-panel input:disabled,.staff-period-panel select:disabled{opacity:.5;cursor:not-allowed}
+.staff-day-cell.period-filled{border-color:#c6ad68;background:#fbf7e9}
+.staff-day-cell.period-filled select{border-color:#c6ad68;background:#fffdf7}
+@media(max-width:900px){.staff-period-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.staff-period-action button{width:100%}}
+@media(max-width:550px){.staff-period-grid{grid-template-columns:1fr}.staff-period-action button{width:100%}}
