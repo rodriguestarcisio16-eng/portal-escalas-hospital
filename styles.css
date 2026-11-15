@@ -256,3 +256,22 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
 .staff-day-cell.period-filled select{border-color:#c6ad68;background:#fffdf7}
 @media(max-width:900px){.staff-period-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.staff-period-action button{width:100%}}
 @media(max-width:550px){.staff-period-grid{grid-template-columns:1fr}.staff-period-action button{width:100%}}
+
+
+/* Matriz mensal da prévia UTI — mesmo padrão visual da escala USI */
+.uti-matrix-scroll{max-width:100%;overflow:auto}
+.uti-preview-matrix{width:100%;min-width:1180px;border-collapse:collapse;table-layout:fixed}
+.uti-preview-matrix th,.uti-preview-matrix td{border:1px solid #dce3df;padding:5px 3px;text-align:center;vertical-align:middle}
+.uti-preview-matrix thead th{position:sticky;top:0;z-index:2;background:#eaf0ed;color:#40534c;font-size:9px}
+.uti-preview-matrix .person-heading{width:210px;text-align:left;padding-left:8px}
+.uti-preview-matrix .total-heading{width:48px}
+.uti-preview-matrix .person-cell{text-align:left;padding:5px 8px}
+.uti-preview-matrix .person-cell b{display:block;font-size:10px;color:#253631}
+.uti-preview-matrix .person-cell small{display:block;margin-top:2px;color:#65736d;font-size:8px}
+.uti-preview-matrix .number-cell{font-size:9px;font-weight:700;color:#344640}
+.uti-preview-matrix td{font-size:9px;min-width:27px}
+.uti-preview-matrix .cell-post{background:#edf5f1;color:#123b36;font-weight:700}
+.uti-preview-matrix .cell-status{color:#65736d}
+.uti-preview-matrix .cell-review{color:#a24c19;background:#fff5e9;font-weight:700}
+.uti-preview-matrix .cell-empty{color:#bbc4bf}
+.uti-matrix-legend{margin-top:8px;padding:8px;border:1px solid #dce3df;border-radius:7px;color:#53615c;font-size:10px;line-height:1.5}
