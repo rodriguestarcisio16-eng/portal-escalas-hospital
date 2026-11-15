@@ -275,3 +275,6 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
 .uti-preview-matrix .cell-review{color:#a24c19;background:#fff5e9;font-weight:700}
 .uti-preview-matrix .cell-empty{color:#bbc4bf}
 .uti-matrix-legend{margin-top:8px;padding:8px;border:1px solid #dce3df;border-radius:7px;color:#53615c;font-size:10px;line-height:1.5}
+
+.uti-preview-summary{display:flex;flex-wrap:wrap;gap:14px;margin:6px 0 8px;color:#53615c;font-size:10px}
+.uti-preview-summary b{color:#123b36;font-size:13px}
