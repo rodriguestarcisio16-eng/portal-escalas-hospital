@@ -189,13 +189,26 @@ export function simulateUtiPreview({
     }
     const unfilled = assignments.filter(item => !item.staff_id);
     if (unfilled.length) dayNotes.push(`${unfilled.length} posto(s) sem indicação automática; encaminhados para revisão manual.`);
-    const extras = eligible.filter(person => !assignedIds.has(person.id) && !heldForReview.some(x => x.id === person.id))
+    const mandatoryMissed = eligible.filter(person =>
+      rulesFor(person.id).some(rule => rule.rule_code === "MUST_ASSIGN") && !assignedIds.has(person.id)
+    );
+    if (mandatoryMissed.length) {
+      dayNotes.push(`${mandatoryMissed.length} profissional(is) com alocação obrigatória não foram indicados automaticamente; conferir restrições, meta e quantidade de postos.`);
+    }
+    const extras = eligible.filter(person => !assignedIds.has(person.id) &&
+      !heldForReview.some(x => x.id === person.id) && !mandatoryMissed.some(x => x.id === person.id))
       .map(person => ({ staff_id: person.id, nome: person.nome, masp: person.masp }));
-    const manualCandidates = heldForReview.map(person => ({
-      staff_id: person.id, nome: person.nome, masp: person.masp,
-      reason: requiresManualRotation(person) ? "Continuidade do rodízio de 40h" :
-        hasPairRule(person) ? "Regra de bloco/par" : "Meta mensal atingida ou ausente",
-    }));
+    const manualCandidates = [
+      ...heldForReview.map(person => ({
+        staff_id: person.id, nome: person.nome, masp: person.masp,
+        reason: requiresManualRotation(person) ? "Continuidade do rodízio de 40h" :
+          hasPairRule(person) ? "Regra de bloco/par" : "Meta mensal atingida ou ausente",
+      })),
+      ...mandatoryMissed.filter(person => !heldForReview.some(x => x.id === person.id)).map(person => ({
+        staff_id: person.id, nome: person.nome, masp: person.masp,
+        reason: "Alocação obrigatória não resolvida automaticamente",
+      }))
+    ];
     days.push({
       work_date: date,
       assignments,
