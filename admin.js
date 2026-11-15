@@ -1,4 +1,5 @@
 import { initializeStaffManagement } from "./staff-management.js?v=20261110-2";
+import { simulateUtiPreview } from "./uti-engine.mjs?v=20261115-1";
 
 const $ = (id) => document.getElementById(id);
 
@@ -621,6 +622,148 @@ function proposalMessage(text, type) {
   el.className = "module-message " + (type || "info");
 }
 
+
+async function simulateUtiSchedule(unit, shift) {
+  const schedule = reference.schedules.find(item =>
+    item.unit_id === unit.id && item.shift_id === shift.id && item.competence === monthStart
+  );
+  if (!schedule) throw new Error("Não existe escala de dezembro/2026 para a UTI e o turno selecionados.");
+  if (schedule.status === "published") throw new Error("A competência está publicada. A prévia não pode ser gerada sobre uma escala publicada.");
+
+  const [links, availability, posts, targets, ruleRows, stagingRows] = await Promise.all([
+    fetchAllRows(() => client.from("staff_unit_assignments").select("staff_id").eq("unit_id", unit.id).eq("shift_id", shift.id).eq("active", true).order("staff_id")),
+    fetchAllRows(() => client.from("monthly_availability").select("staff_id, work_date, original_marker, availability_status, reviewed, source_file, source_row").eq("schedule_id", schedule.id).order("work_date")),
+    fetchAllRows(() => client.from("care_posts").select("id, code, name, post_type, sequence, manual_only").eq("unit_id", unit.id).eq("active", true).order("sequence")),
+    fetchAllRows(() => client.from("monthly_staff_targets").select("staff_id, expected_shifts, weekly_hours_snapshot, source_weekly_hours_raw, reviewed").eq("schedule_id", schedule.id)),
+    fetchAllRows(() => client.from("staff_assignment_rules").select("staff_id, rule_code, unit_code, shift_code, rule_value, priority_rank, pair_group, pair_side, day_scope").eq("active", true)),
+    fetchAllRows(() => client.from("staff_assignment_rule_staging").select("id, resolution_status, rule_code"))
+  ]);
+  const linkedIds = [...new Set(links.map(row => row.staff_id).filter(Boolean))];
+  const staffRows = await fetchAllRows(() =>
+    client.from("staff").select("id, masp, nome, categoria, weekly_hours, active").in("id", linkedIds).eq("active", true).order("nome")
+  );
+  const rules = ruleRows.filter(rule =>
+    (!rule.unit_code || rule.unit_code === unit.code) &&
+    (!rule.shift_code || rule.shift_code === shift.code)
+  );
+  const report = simulateUtiPreview({
+    staff: staffRows,
+    linkedStaffIds: linkedIds,
+    availability,
+    targets,
+    posts,
+    rules,
+    staging: stagingRows,
+    competence: schedule.competence
+  });
+  renderUtiProposal(report, schedule, unit, shift);
+}
+
+function renderUtiProposal(report, schedule, unit, shift) {
+  const totalFilled = report.days.reduce((sum, day) => sum + day.filled, 0);
+  const totalVacant = report.days.reduce((sum, day) => sum + day.vacant, 0);
+  const totalExtras = report.days.reduce((sum, day) => sum + day.extras.length, 0);
+  const dayByDate = new Map(report.days.map(day => [day.work_date, day]));
+  const markerByDate = new Map();
+  report.availabilitySnapshot.forEach(row => {
+    if (!markerByDate.has(row.work_date)) markerByDate.set(row.work_date, new Map());
+    if (row.staff_id) markerByDate.get(row.work_date).set(row.staff_id, row);
+  });
+  const allocatedByStaff = new Map();
+  report.days.forEach(day => day.assignments.forEach(item => {
+    if (item.staff_id) allocatedByStaff.set(item.staff_id, (allocatedByStaff.get(item.staff_id) || 0) + 1);
+  }));
+  const matrixHeaders = report.days.map(day => '<th>' + String(Number(day.work_date.slice(8,10))).padStart(2,"0") + '</th>').join("");
+  const roster = [...report.staffRoster].sort((a,b) => normalizedName(a.nome).localeCompare(normalizedName(b.nome)));
+  const matrixRows = roster.map(person => {
+    const allocated = allocatedByStaff.get(person.staff_id) || 0;
+    const cells = report.days.map(day => {
+      const assignment = day.assignments.find(item => item.staff_id === person.staff_id);
+      const source = markerByDate.get(day.work_date)?.get(person.staff_id);
+      const code = assignment ? String(assignment.post_code || "").replace(/^UTI-/,"") :
+        source?.marker === "X" && source.status === "pending" ? "X*" :
+        source?.marker === "X" && source.status === "available" ? "" :
+        source?.marker || "";
+      let css = "cell-empty";
+      if (code === "X*") css = "cell-review";
+      else if (["FO","FR","LM","LMA","APA","REM","TP","REV"].includes(code)) css = "cell-status";
+      else if (code) css = "cell-post";
+      return '<td class="' + css + '">' + escapeHtml(code) + '</td>';
+    }).join("");
+    return '<tr><td class="person-cell"><b>' + escapeHtml(person.nome) + '</b><small>MASP ' +
+      escapeHtml(person.masp || "—") + ' · ' + escapeHtml(person.categoria || "") + '</small></td>' +
+      '<td class="number-cell">' + escapeHtml(person.expected_shifts ?? "—") + '</td>' +
+      '<td class="number-cell">' + allocated + '</td>' + cells + '</tr>';
+  }).join("");
+  const totalAssignments = report.days.reduce((sum,day) =>
+    sum + day.assignments.filter(item => item.staff_id).length, 0);
+  const manualReview = report.days.reduce((sum,day) => sum + day.manual_candidates.length, 0);
+  const remCount = report.days.reduce((sum,day) => sum + day.rem.length, 0);
+  const matrix = '<div class="table-scroll uti-matrix-scroll"><table class="uti-preview-matrix"><thead><tr>' +
+    '<th class="person-heading">PROFISSIONAL / MASP</th><th class="total-heading">META</th><th class="total-heading">ALOC.</th>' +
+    matrixHeaders + '</tr></thead><tbody>' + matrixRows + '</tbody></table></div>' +
+    '<div class="uti-matrix-legend"><b>LEGENDA:</b> códigos numéricos = postos UTI · FO = folga · FR = férias · LM = licença médica · ' +
+    'LMA = licença maternidade · APA = afastamento · REM = remanejamento manual · TP = troca em revisão · REV = conferir · ' +
+    'X* = X pendente de revisão · célula vazia = sem alocação proposta.</div>' +
+    '<div class="proposal-side-notes">' +
+    '<div><b>Profissionais para decisão manual</b><p>' + manualReview + ' ocorrência(s) de revisão ao longo do mês. Consulte as observações diárias e regras pendentes.</p></div>' +
+    '<div><b>REM — fora dos postos automáticos</b><p>' + remCount + ' marcação(ões) de remanejamento no mês.</p></div>' +
+    '</div>';
+  const warnings = report.globalIssues.length
+    ? '<div class="engine-warning-list">' + report.globalIssues.map(issue => '<p>' + escapeHtml(issue) + '</p>').join('') + '</div>'
+    : "";
+  const proposalData = {
+    schema_version: 1,
+    algorithm: report.algorithm,
+    generated_at: new Date().toISOString(),
+    unit_code: unit.code,
+    shift_code: shift.code,
+    days: report.days.map(day => ({
+      work_date: day.work_date,
+      assignments: day.assignments.map(item => ({
+        post_code: item.post_code, post_name: item.post_name, staff_id: item.staff_id,
+        nome: item.nome, masp: item.masp, assignment_method: item.assignment_method
+      })),
+      extras: day.extras,
+      rem: day.rem,
+      review: day.review,
+      manual_candidates: day.manual_candidates,
+      notes: day.notes
+    })),
+    staff_roster: report.staffRoster,
+    availability_snapshot: report.days.map(day => ({
+      work_date: day.work_date,
+      markers: report.availabilitySnapshot.filter(row => row.work_date === day.work_date && row.staff_id)
+        .map(row => ({staff_id: row.staff_id, marker: row.marker, status: row.status}))
+    })),
+    global_issues: report.globalIssues
+  };
+  const metrics = {
+    algorithm: report.algorithm,
+    days: report.days.length,
+    direct_filled: totalFilled,
+    direct_vacant: totalVacant,
+    daily_extras: totalExtras,
+    global_issues: report.globalIssues.length
+  };
+  lastProposal = {scheduleId: schedule.id, proposalData, metrics};
+  $("generate-proposal").disabled = false;
+  $("generate-proposal").textContent = "Salvar para revisão";
+  // Os PDFs atuais possuem cabeçalho e legenda específicos da USI. Serão habilitados
+  // para a UTI após a revisão do layout definitivo, evitando emitir documento incorreto.
+  ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = true; });
+  $("proposal-preview").innerHTML =
+    '<div class="engine-summary-grid">' +
+    '<div><strong>' + report.days.length + '</strong><small>dias simulados</small></div>' +
+    '<div><strong>' + totalFilled + '</strong><small>postos indicados</small></div>' +
+    '<div><strong>' + totalVacant + '</strong><small>postos para revisão</small></div>' +
+    '<div><strong>' + totalExtras + '</strong><small>excedentes (somatório diário)</small></div></div>' +
+    '<div class="engine-method"><b>Prévia UTI · UTI_PREVIEW_V1</b><p>As alocações seguem as regras nominativas e as restrições cadastradas. Profissionais de 40h sem continuidade inequívoca do rodízio, regras de pares/blocos e postos sem indicação segura ficam destacados para decisão manual. REM aparece separado e não ocupa posto automaticamente.</p><p>Esta prévia não é escala oficial e não foi publicada.</p></div>' +
+    warnings + '<div class="uti-preview-summary"><span><b>' + roster.length + '</b> profissionais vinculados</span><span><b>' + report.days.length + '</b> dias exibidos</span><span><b>' + totalAssignments + '</b> alocações propostas</span></div>' +
+    matrix;
+  proposalMessage("Prévia da UTI gerada em memória. " + totalFilled + " indicações e " + totalVacant + " postos para revisão no conjunto dos " + report.days.length + " dias. Nada foi publicado.", "success");
+}
+
 function renderBlockedUtiProposal() {
   lastProposal = null;
   if ($("generate-proposal")) {
@@ -1091,7 +1234,7 @@ async function simulateSelectedSchedule() {
     if (!unit || !shift) throw new Error("Selecione uma unidade e um turno válidos.");
 
     if (unit.code === "UTI_ADULTO") {
-      renderBlockedUtiProposal();
+      await simulateUtiSchedule(unit, shift);
       return;
     }
     if (unit.code !== "USI_ADULTO") {
