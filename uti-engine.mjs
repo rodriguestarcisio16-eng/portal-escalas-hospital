@@ -35,7 +35,7 @@ export function simulateUtiPreview({
 
   const allocationCounts = new Map();
   const days = [];
-  const normalized = value => String(value ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase();
+  const normalized = value => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   const isFortyHour = person => Number(person.weekly_hours) === 40 ||
     Number(targetById.get(person.id)?.weekly_hours_snapshot) === 40 ||
     Number(targetById.get(person.id)?.source_weekly_hours_raw) === 40;
@@ -51,10 +51,6 @@ export function simulateUtiPreview({
     if (personRules.some(rule => rule.rule_code === "FORBID_POST_TYPE" && rule.rule_value === post.post_type)) return false;
     return true;
   };
-  const hasExplicitPost = (person, post) => rulesFor(person.id).some(rule =>
-    (rule.rule_code === "ONLY_POST_CODE" || rule.rule_code === "PRIORITY_POST_CODE") &&
-    rule.rule_value === post.code
-  );
   const requiresManualRotation = person => {
     const personRules = rulesFor(person.id);
     return isFortyHour(person) &&
@@ -123,7 +119,9 @@ export function simulateUtiPreview({
       }
     };
 
-    const autoPosts = postList.filter(post => post.manual_only !== true);
+    const autoPosts = postList.filter(post => post.manual_only !== true && post.post_type === "bed");
+    const manualPosts = postList.filter(post => post.manual_only === true || post.post_type !== "bed");
+    if (manualPosts.length) dayNotes.push(`${manualPosts.length} posto(s) de apoio/serviço ou configurado(s) para lançamento manual foram preservados para decisão do responsável.`);
     const orderedCandidates = eligible.filter(person =>
       targetRemaining(person.id) > 0 &&
       !hasPairRule(person) &&
@@ -141,7 +139,7 @@ export function simulateUtiPreview({
 
     // Regras de posto explicitamente nominativas têm precedência sobre a distribuição geral.
     const priorityRules = rules.filter(rule =>
-      rule.rule_code === "PRIORITY_POST_CODE" && rule.unit_code === "UTI_ADULTO"
+      rule.rule_code === "PRIORITY_POST_CODE" && (!rule.unit_code || rule.unit_code === "UTI_ADULTO")
     ).sort((a, b) => Number(a.priority_rank ?? 9999) - Number(b.priority_rank ?? 9999));
     for (const post of autoPosts) {
       const prioritized = priorityRules
@@ -164,6 +162,9 @@ export function simulateUtiPreview({
 
     const remainingPeople = orderedCandidates.filter(person => !assignedIds.has(person.id));
     remainingPeople.sort((a, b) => {
+      const aMust = rulesFor(a.id).some(rule => rule.rule_code === "MUST_ASSIGN");
+      const bMust = rulesFor(b.id).some(rule => rule.rule_code === "MUST_ASSIGN");
+      if (aMust !== bMust) return aMust ? -1 : 1;
       const aOptions = autoPosts.filter(post => !assignments.some(x => x.post_code === post.code) && allowedForPost(a, post)).length;
       const bOptions = autoPosts.filter(post => !assignments.some(x => x.post_code === post.code) && allowedForPost(b, post)).length;
       if (aOptions !== bOptions) return aOptions - bOptions;
@@ -179,7 +180,8 @@ export function simulateUtiPreview({
       );
       assign(post, person ?? null, "balanced_candidate");
     }
-    for (const post of postList.filter(item => item.manual_only === true)) {
+    assignments.sort((a, b) => Number(postList.find(p => p.code === a.post_code)?.sequence ?? 9999) - Number(postList.find(p => p.code === b.post_code)?.sequence ?? 9999));
+    for (const post of manualPosts) {
       assignments.push({
         post_code: post.code, post_name: post.name, post_type: post.post_type,
         staff_id: null, nome: null, masp: null, assignment_method: "manual_only",
