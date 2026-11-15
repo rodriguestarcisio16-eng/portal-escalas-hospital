@@ -663,37 +663,52 @@ function renderUtiProposal(report, schedule, unit, shift) {
   const totalFilled = report.days.reduce((sum, day) => sum + day.filled, 0);
   const totalVacant = report.days.reduce((sum, day) => sum + day.vacant, 0);
   const totalExtras = report.days.reduce((sum, day) => sum + day.extras.length, 0);
-  const cards = report.days.map((day, index) => {
-    const rows = day.assignments.map(item =>
-      '<tr><td><b>' + escapeHtml(item.post_code) + '</b><small class="sub-value">' + escapeHtml(item.post_name) + '</small></td>' +
-      '<td>' + (item.staff_id ? '<strong>' + escapeHtml(item.nome) + '</strong><small class="sub-value">MASP ' + escapeHtml(item.masp) + '</small>' :
-      '<span class="status-chip warning">' + (item.assignment_method === "manual_only" ? "REVISÃO MANUAL" : "SEM INDICAÇÃO") + '</span>') + '</td></tr>'
-    ).join("");
-    const manual = day.manual_candidates.length
-      ? day.manual_candidates.map(person => escapeHtml(person.nome) + ' (' + escapeHtml(person.masp) + ') — ' + escapeHtml(person.reason)).join('<br>')
-      : "Nenhum profissional retido para conferência especial.";
-    const extras = day.extras.length
-      ? day.extras.map(person => escapeHtml(person.nome) + ' (' + escapeHtml(person.masp) + ')').join(' · ')
-      : "Nenhum excedente elegível.";
-    const rem = day.rem.length
-      ? day.rem.map(person => escapeHtml(person.nome) + ' (' + escapeHtml(person.masp || "—") + ')').join(' · ')
-      : "Nenhum profissional marcado como REM.";
-    const review = day.review.length
-      ? day.review.map(item => escapeHtml(item.marker) + ' — ' + escapeHtml(item.nome || "sem identificação") + ' — linha ' + escapeHtml(item.source_row || "—")).join('<br>')
-      : "Nenhuma marcação pendente/revisão.";
-    const notes = day.notes.length
-      ? '<ul class="engine-notes">' + day.notes.map(note => '<li>' + escapeHtml(note) + '</li>').join('') + '</ul>'
-      : "";
-    const label = new Date(day.work_date + "T12:00:00").toLocaleDateString("pt-BR", {weekday:"long",day:"2-digit",month:"2-digit"});
-    return '<details class="proposal-day"' + (index === 0 ? " open" : "") + '><summary><span>' + escapeHtml(label) +
-      '</span><small>' + day.filled + '/' + day.assignments.length + ' postos indicados · ' + day.vacant + ' para revisão</small></summary>' +
-      '<div class="proposal-day-body"><div class="table-scroll"><table class="roster-table proposal-table"><thead><tr><th>Posto</th><th>Profissional proposto</th></tr></thead><tbody>' +
-      rows + '</tbody></table></div><div class="proposal-side-notes">' +
-      '<div><b>Profissionais para decisão manual</b><p>' + manual + '</p></div>' +
-      '<div><b>REM — remanejamento manual (fora dos postos automáticos)</b><p>' + rem + '</p></div>' +
-      '<div><b>Disponíveis excedentes</b><p>' + extras + '</p></div>' +
-      '<div><b>Marcações para conferência</b><p>' + review + '</p></div>' + notes + '</div></div></details>';
+  const dayByDate = new Map(report.days.map(day => [day.work_date, day]));
+  const markerByDate = new Map();
+  report.availabilitySnapshot.forEach(row => {
+    if (!markerByDate.has(row.work_date)) markerByDate.set(row.work_date, new Map());
+    if (row.staff_id) markerByDate.get(row.work_date).set(row.staff_id, row);
+  });
+  const allocatedByStaff = new Map();
+  report.days.forEach(day => day.assignments.forEach(item => {
+    if (item.staff_id) allocatedByStaff.set(item.staff_id, (allocatedByStaff.get(item.staff_id) || 0) + 1);
+  }));
+  const matrixHeaders = report.days.map(day => '<th>' + String(Number(day.work_date.slice(8,10))).padStart(2,"0") + '</th>').join("");
+  const roster = [...report.staffRoster].sort((a,b) => normalizedName(a.nome).localeCompare(normalizedName(b.nome)));
+  const matrixRows = roster.map(person => {
+    const allocated = allocatedByStaff.get(person.staff_id) || 0;
+    const cells = report.days.map(day => {
+      const assignment = day.assignments.find(item => item.staff_id === person.staff_id);
+      const source = markerByDate.get(day.work_date)?.get(person.staff_id);
+      const code = assignment ? String(assignment.post_code || "").replace(/^UTI-/,"") :
+        source?.marker === "X" && source.status === "pending" ? "X*" :
+        source?.marker === "X" && source.status === "available" ? "" :
+        source?.marker || "";
+      let css = "cell-empty";
+      if (code === "X*") css = "cell-review";
+      else if (["FO","FR","LM","LMA","APA","REM","TP","REV"].includes(code)) css = "cell-status";
+      else if (code) css = "cell-post";
+      return '<td class="' + css + '">' + escapeHtml(code) + '</td>';
+    }).join("");
+    return '<tr><td class="person-cell"><b>' + escapeHtml(person.nome) + '</b><small>MASP ' +
+      escapeHtml(person.masp || "—") + ' · ' + escapeHtml(person.categoria || "") + '</small></td>' +
+      '<td class="number-cell">' + escapeHtml(person.expected_shifts ?? "—") + '</td>' +
+      '<td class="number-cell">' + allocated + '</td>' + cells + '</tr>';
   }).join("");
+  const totalAssignments = report.days.reduce((sum,day) =>
+    sum + day.assignments.filter(item => item.staff_id).length, 0);
+  const manualReview = report.days.reduce((sum,day) => sum + day.manual_candidates.length, 0);
+  const remCount = report.days.reduce((sum,day) => sum + day.rem.length, 0);
+  const matrix = '<div class="table-scroll uti-matrix-scroll"><table class="uti-preview-matrix"><thead><tr>' +
+    '<th class="person-heading">PROFISSIONAL / MASP</th><th class="total-heading">META</th><th class="total-heading">ALOC.</th>' +
+    matrixHeaders + '</tr></thead><tbody>' + matrixRows + '</tbody></table></div>' +
+    '<div class="uti-matrix-legend"><b>LEGENDA:</b> códigos numéricos = postos UTI · FO = folga · FR = férias · LM = licença médica · ' +
+    'LMA = licença maternidade · APA = afastamento · REM = remanejamento manual · TP = troca em revisão · REV = conferir · ' +
+    'X* = X pendente de revisão · célula vazia = sem alocação proposta.</div>' +
+    '<div class="proposal-side-notes">' +
+    '<div><b>Profissionais para decisão manual</b><p>' + manualReview + ' ocorrência(s) de revisão ao longo do mês. Consulte as observações diárias e regras pendentes.</p></div>' +
+    '<div><b>REM — fora dos postos automáticos</b><p>' + remCount + ' marcação(ões) de remanejamento no mês.</p></div>' +
+    '</div>';
   const warnings = report.globalIssues.length
     ? '<div class="engine-warning-list">' + report.globalIssues.map(issue => '<p>' + escapeHtml(issue) + '</p>').join('') + '</div>'
     : "";
@@ -744,7 +759,8 @@ function renderUtiProposal(report, schedule, unit, shift) {
     '<div><strong>' + totalVacant + '</strong><small>postos para revisão</small></div>' +
     '<div><strong>' + totalExtras + '</strong><small>excedentes (somatório diário)</small></div></div>' +
     '<div class="engine-method"><b>Prévia UTI · UTI_PREVIEW_V1</b><p>As alocações seguem as regras nominativas e as restrições cadastradas. Profissionais de 40h sem continuidade inequívoca do rodízio, regras de pares/blocos e postos sem indicação segura ficam destacados para decisão manual. REM aparece separado e não ocupa posto automaticamente.</p><p>Esta prévia não é escala oficial e não foi publicada.</p></div>' +
-    warnings + '<div class="proposal-days">' + cards + '</div>';
+    warnings + '<div class="pdf-summary"><span><b>' + roster.length + '</b> profissionais vinculados</span><span><b>' + report.days.length + '</b> dias exibidos</span><span><b>' + totalAssignments + '</b> alocações propostas</span></div>' +
+    matrix;
   proposalMessage("Prévia da UTI gerada em memória. " + totalFilled + " indicações e " + totalVacant + " postos para revisão no conjunto dos " + report.days.length + " dias. Nada foi publicado.", "success");
 }
 
