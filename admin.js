@@ -759,7 +759,7 @@ function renderUtiProposal(report, schedule, unit, shift) {
     '<div><strong>' + totalVacant + '</strong><small>postos para revisão</small></div>' +
     '<div><strong>' + totalExtras + '</strong><small>excedentes (somatório diário)</small></div></div>' +
     '<div class="engine-method"><b>Prévia UTI · UTI_PREVIEW_V1</b><p>As alocações seguem as regras nominativas e as restrições cadastradas. Profissionais de 40h sem continuidade inequívoca do rodízio, regras de pares/blocos e postos sem indicação segura ficam destacados para decisão manual. REM aparece separado e não ocupa posto automaticamente.</p><p>Esta prévia não é escala oficial e não foi publicada.</p></div>' +
-    warnings + '<div class="pdf-summary"><span><b>' + roster.length + '</b> profissionais vinculados</span><span><b>' + report.days.length + '</b> dias exibidos</span><span><b>' + totalAssignments + '</b> alocações propostas</span></div>' +
+    warnings + '<div class="uti-preview-summary"><span><b>' + roster.length + '</b> profissionais vinculados</span><span><b>' + report.days.length + '</b> dias exibidos</span><span><b>' + totalAssignments + '</b> alocações propostas</span></div>' +
     matrix;
   proposalMessage("Prévia da UTI gerada em memória. " + totalFilled + " indicações e " + totalVacant + " postos para revisão no conjunto dos " + report.days.length + " dias. Nada foi publicado.", "success");
 }
