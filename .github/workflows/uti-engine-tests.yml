@@ -1,0 +1,29 @@
+name: UTI preview engine tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "admin.js"
+      - "uti-engine.mjs"
+      - "tests/**"
+      - ".github/workflows/uti-engine-tests.yml"
+  push:
+    branches: [feature/uti-preview-v1]
+    paths:
+      - "admin.js"
+      - "uti-engine.mjs"
+      - "tests/**"
+      - ".github/workflows/uti-engine-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/*.test.mjs
+      - run: node --check admin.js
+      - run: node --check uti-engine.mjs
