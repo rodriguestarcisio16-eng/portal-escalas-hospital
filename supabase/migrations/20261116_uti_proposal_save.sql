@@ -131,7 +131,7 @@ BEGIN
     RAISE EXCEPTION 'A proposta contém % dias; a competência exige % dias.', v_days, v_expected_days;
   END IF;
 
-  -- Cada dia precisa conter exatamente os 11 postos diretos da USI.
+  -- Cada dia precisa conter todos os postos ativos previstos para a unidade.
   FOR v_day IN SELECT value FROM jsonb_array_elements(p_proposal_data->'days')
   LOOP
     IF COALESCE(v_day->>'work_date','') = '' THEN
