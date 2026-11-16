@@ -1104,19 +1104,23 @@ function exportProposalPdf(period = "monthly") {
         else if (code) css = "cell-post";
         return '<td class="'+css+'">'+escapeHtml(code)+'</td>';
       }).join("");
-      return '<tr><td class="person-cell"><b>'+escapeHtml(person.nome)+'</b>' +
-        '<small>MASP '+escapeHtml(person.masp)+' · '+escapeHtml(person.categoria || "")+'</small></td>' +
+      const noAllocation = Number(person.expected_shifts || 0) > 0 && allocated === 0;
+      return '<tr class="'+(noAllocation ? "person-no-allocation" : "")+'"><td class="person-cell"><b>'+escapeHtml(person.nome)+'</b>' +
+        '<small>MASP '+escapeHtml(person.masp)+' · '+escapeHtml(person.categoria || "")+'</small>' +
+        (noAllocation ? '<small class="no-allocation-flag">SEM ALOCAÇÃO NA PRÉVIA</small>' : '') + '</td>' +
         '<td class="number-cell">'+escapeHtml(person.expected_shifts ?? "—")+'</td>' +
         '<td class="number-cell">'+allocated+'</td>'+cells+'</tr>';
     }).join("");
     const totalAssigned = selectedDays.reduce((sum,day) =>
       sum+(day.assignments || []).filter(item=>item.staff_id).length+(day.material?.staff_id ? 1 : 0),0);
+    const staffWithAllocation = periodRoster.filter(person => (periodCounts.get(person.staff_id)||0) > 0).length;
     const range = period === "monthly"
       ? "DIAS 01 A "+dayNumber(selectedDays[selectedDays.length-1].work_date)
       : "DIAS "+dayNumber(selectedDays[0].work_date)+" A "+dayNumber(selectedDays[selectedDays.length-1].work_date);
     bodyHtml =
       '<div class="pdf-range">'+range+'</div>' +
-      '<div class="pdf-summary"><span><b>'+periodRoster.length+'</b> profissionais escalados</span>' +
+      '<div class="pdf-summary"><span><b>'+periodRoster.length+'</b> profissionais na relação</span>' +
+      '<span><b>'+staffWithAllocation+'</b> com alocação proposta</span>' +
       '<span><b>'+selectedDays.length+'</b> dias exibidos</span>' +
       '<span><b>'+totalAssigned+'</b> alocações propostas no período</span></div>' +
       '<table class="matrix '+(period === "monthly" ? "matrix-month" : "matrix-week")+'"><thead><tr>' +
@@ -1124,7 +1128,7 @@ function exportProposalPdf(period = "monthly") {
       '<th class="total-heading">ALOC.</th>'+headers+'</tr></thead><tbody>'+rows+'</tbody></table>' +
       '<div class="pdf-legend"><b>LEGENDA:</b> ' +
       (unit.code === "UTI_ADULTO"
-        ? 'Códigos numéricos = postos assistenciais UTI cadastrados · APOIO/serviços = postos de conferência manual · '
+        ? 'UTI-01 a UTI-22 = assistência direta · UTI-APOIO-1 e UTI-APOIO-2 = apoios distintos · UTI-MATERIAL = sala de material · UTI-CIRCULANTE = circulante. Os quatro postos de apoio/serviço são definidos manualmente nesta prévia · '
         : '01–11 = postos USI-01 a USI-11 · CM = circulação/material · ') +
       'FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento · ' +
       'REM = remanejamento manual · TP = troca em revisão · REV = conferir · X* = X pendente de revisão. ' +
