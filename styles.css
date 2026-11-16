@@ -295,3 +295,52 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
   .collapsible-summary-side{gap:6px}
   .collapsible-content{padding:0 10px 12px}
 }
+
+
+/* Organização progressiva: detalhes aparecem sob demanda */
+.staff-collapsible,.staff-form-disclosure,.analysis-result-disclosure,.saved-history-disclosure{
+  border:1px solid var(--line);border-radius:10px;background:#fff;min-width:0;overflow:hidden
+}
+.staff-collapsible{padding:0}
+.staff-disclosure-summary,.analysis-result-summary{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 13px;cursor:pointer;list-style:none;user-select:none
+}
+.staff-disclosure-summary::-webkit-details-marker,.analysis-result-summary::-webkit-details-marker,
+.saved-history-disclosure>summary::-webkit-details-marker{display:none}
+.staff-disclosure-summary h5,.staff-disclosure-summary h6{margin:0;font:800 12px Manrope;color:var(--ink)}
+.staff-disclosure-summary small,.analysis-result-summary small,.saved-proposal-heading small{
+  display:block;margin-top:3px;font-size:10px;font-weight:400;line-height:1.4;color:var(--muted)
+}
+.staff-disclosure-side{display:flex;align-items:center;gap:8px;flex:none}
+.staff-directory-content{padding:0 12px 12px}
+.staff-directory-content input[type=search]{width:100%;margin:0 0 10px}
+.staff-form-disclosure{padding:0;margin-top:10px}
+.staff-form-disclosure>.staff-disclosure-summary{background:#fbfcfb}
+.staff-form-disclosure>.staff-form-grid,.staff-form-disclosure>.staff-form-section-head,
+.staff-form-disclosure>.staff-assignment-grid,.staff-form-disclosure>.staff-month-note,
+.staff-form-disclosure>.staff-period-panel,.staff-form-disclosure>.staff-calendar,
+.staff-form-disclosure>.staff-marker-legend{margin-left:12px;margin-right:12px}
+.staff-form-disclosure>.staff-form-grid:first-of-type{margin-top:12px}
+.staff-form-disclosure>.staff-form-section-head{margin-top:12px}
+.staff-form-disclosure>.staff-form-grid:last-of-type{margin-bottom:10px}
+.staff-form-disclosure>.staff-assignment-grid{margin-bottom:12px}
+.staff-form-disclosure>.staff-calendar{margin-top:10px}
+.staff-form-disclosure>.staff-marker-legend{display:block;padding-bottom:12px}
+.analysis-result-disclosure{margin-top:12px}
+.analysis-result-summary{background:#fbfcfb}
+.analysis-result-summary b{font:800 12px Manrope;color:var(--ink)}
+.analysis-result-content{padding:0 12px 12px}
+.saved-history-disclosure{padding:0}
+.saved-history-disclosure>summary{padding:10px 12px;margin:0;cursor:pointer;list-style:none}
+.saved-history-disclosure .saved-proposal-list{padding:0 12px 12px}
+.staff-disclosure-summary:focus-visible,.analysis-result-summary:focus-visible,
+.saved-history-disclosure>summary:focus-visible{outline:2px solid var(--green2);outline-offset:-3px}
+@media(max-width:650px){
+ .staff-manager-layout{gap:10px}
+ .staff-disclosure-summary,.analysis-result-summary{padding:11px}
+ .staff-form-disclosure>.staff-form-grid,.staff-form-disclosure>.staff-form-section-head,
+ .staff-form-disclosure>.staff-assignment-grid,.staff-form-disclosure>.staff-month-note,
+ .staff-form-disclosure>.staff-period-panel,.staff-form-disclosure>.staff-calendar,
+ .staff-form-disclosure>.staff-marker-legend{margin-left:9px;margin-right:9px}
+}
