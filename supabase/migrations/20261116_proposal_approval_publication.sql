@@ -457,7 +457,7 @@ BEGIN
     'proposal_version', v_version, 'status', 'approved'
   );
 END;
-$;
+$$;
 
 -- Publica apenas a proposta aprovada mais recente.
 -- Se houver posto obrigatório descoberto, retorna a lista sem gravar nada.
@@ -686,7 +686,7 @@ BEGIN
     'proposal_version', v_proposal_version, 'assignments_inserted', v_inserted
   );
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.admin_approve_schedule_proposal(UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_publish_schedule_proposal(UUID) FROM PUBLIC, anon;
