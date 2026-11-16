@@ -262,6 +262,12 @@ function renderMonthAnalysis(report) {
   ).join("");
 
   $("month-analysis").innerHTML = `
+    <details class="analysis-result-disclosure">
+      <summary class="analysis-result-summary">
+        <span><b>Resultado da pré-análise</b><small>${report.scheduleCount} escalas verificadas · ${issues.filter(i=>i.level==="blocking").length} pendências · ${issues.filter(i=>i.level==="warning").length} avisos</small></span>
+        <span class="collapse-indicator" aria-hidden="true"></span>
+      </summary>
+      <div class="analysis-result-content">
     <div class="analysis-summary">
       <div><strong>${report.scheduleCount}</strong><span>escalas verificadas</span></div>
       <div><strong>${report.availabilityRows}</strong><span>marcações lidas</span></div>
@@ -277,7 +283,9 @@ function renderMonthAnalysis(report) {
       <div class="panel-heading"><div><h4>Insuficiência de capacidade bruta por dia</h4><p>Comparação entre X confirmados e total de postos. Não representa a distribuição final.</p></div></div>
       ${rows ? `<div class="table-scroll"><table class="roster-table analysis-table"><thead><tr><th>Data</th><th>Unidade</th><th>Turno</th><th>X confirmados</th><th>Postos</th><th>Diferença</th></tr></thead><tbody>${rows}</tbody></table></div><p class="table-foot">Exibindo até 12 das ${report.dailyShortages.length} ocorrências.</p>` : '<p class="no-pending">Nenhum dia abaixo do total bruto de postos.</p>'}
     </section>
-    <p class="module-disclaimer">Pré-análise somente de leitura. A quantidade mensal de plantões e as horas registradas foram preservadas; divergência entre alvo e X não foi tratada como erro.</p>`;
+    <p class="module-disclaimer">Pré-análise somente de leitura. A quantidade mensal de plantões e as horas registradas foram preservadas; divergência entre alvo e X não foi tratada como erro.</p>
+      </div>
+    </details>`;
 }
 
 async function analyzeMonth() {
@@ -926,7 +934,8 @@ async function loadSavedProposalHistory() {
     superseded: "Substituída"
   };
   root.innerHTML =
-    '<div class="saved-proposal-heading"><b>Histórico de propostas</b><span class="status-chip neutral">' + data.length + ' versão(ões)</span></div>' +
+    '<details class="saved-history-disclosure">' +
+    '<summary class="saved-proposal-heading"><span><b>Histórico de propostas</b><small>' + data.length + ' versão(ões) salvas</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>' +
     '<div class="saved-proposal-list">' + data.map(item => {
       const metrics = item.metrics || {};
       const timestamp = new Date(item.created_at).toLocaleString("pt-BR");
@@ -935,7 +944,7 @@ async function loadSavedProposalHistory() {
         escapeHtml(statusLabels[item.status] || item.status) + '</span><small>' +
         escapeHtml(metrics.direct_filled ?? "—") + ' postos preenchidos · ' +
         escapeHtml(metrics.direct_vacant ?? "—") + ' descobertos</small></div></div>';
-    }).join("") + '</div>';
+    }).join("") + '</div></details>';
 }
 
 function exportProposalPdf(period = "monthly") {
