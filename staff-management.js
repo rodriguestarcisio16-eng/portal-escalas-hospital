@@ -90,7 +90,7 @@ function renderManagementShell() {
             </details>
             <details class="staff-form-section staff-form-disclosure">
               <summary class="staff-disclosure-summary"><span><h6>Vínculos de unidade e turno</h6><small>Unidades e turnos em que o profissional pode atuar</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>
-              <div class="staff-form-section-head"><small>Marque cada combinação em que o profissional pode integrar a equipe.</small></div><small>Marque cada combinação em que o profissional pode integrar a equipe.</small></div>
+              <div class="staff-form-section-head"><small>Marque cada combinação em que o profissional pode integrar a equipe.</small></div>
               <div class="staff-assignment-grid">
                 ${["UTI_ADULTO", "USI_ADULTO"].map((unitCode) => {
                   const unit = reference.units.find((x) => x.code === unitCode);
@@ -103,7 +103,7 @@ function renderManagementShell() {
             </details>
             <details class="staff-form-section staff-form-disclosure">
               <summary class="staff-disclosure-summary"><span><h6>Escala mensal e disponibilidade</h6><small>Meta, afastamentos por período e calendário diário</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>
-              <div class="staff-form-section-head"><small>Escolha a competência e o turno. O calendário é preenchido manualmente.</small></div><small>Escolha a competência e o turno. O calendário é preenchido manualmente.</small></div>
+              <div class="staff-form-section-head"><small>Escolha a competência e o turno. O calendário é preenchido manualmente.</small></div>
               <div class="staff-form-grid staff-form-grid-three">
                 <div class="field-group"><label for="staff-schedule">Competência / unidade / turno</label><select id="staff-schedule"></select></div>
                 <div class="field-group"><label for="staff-competence-hours">Horas registradas na competência</label><input id="staff-competence-hours" type="number" min="0" max="200" step="1" placeholder="Ex.: 31" /></div>
