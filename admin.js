@@ -1039,7 +1039,7 @@ function renderUsiProposal(report, schedule, unit, shift, editorSelection = {}) 
     }));
     const assignedToday = new Set(day.assignments.filter(item => item.staff?.id && item.code !== post.code).map(item => item.staff.id));
     const options = report.staffRoster.filter(person => {
-      if (person.staff_id === materialId) return false;
+      if (person.staff_id === materialId || day.rem.some(item => item.id === person.staff_id)) return false;
       if (!(eligibleIds.has(person.staff_id) || person.staff_id === currentId)) return false;
       const alreadyOnBed = assignedToday.has(person.staff_id);
       const count = assignedDates.get(person.staff_id)?.size || 0;
