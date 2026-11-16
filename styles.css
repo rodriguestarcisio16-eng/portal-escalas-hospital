@@ -365,3 +365,5 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
 .uti-manual-editor-body>button{margin:0}
 .uti-manual-editor-body .module-message{margin-top:8px}
 @media(max-width:650px){.uti-manual-fields{grid-template-columns:1fr}.uti-manual-editor-body>button{width:100%}}
+
+.manual-pending{color:#8a6418;font-size:8px;font-weight:700}
