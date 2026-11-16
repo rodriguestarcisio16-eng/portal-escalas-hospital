@@ -693,7 +693,7 @@ function renderUtiProposal(report, schedule, unit, shift) {
     const cells = report.days.map(day => {
       const assignment = day.assignments.find(item => item.staff_id === person.staff_id);
       const source = markerByDate.get(day.work_date)?.get(person.staff_id);
-      const code = assignment ? String(assignment.post_code || "").replace(/^UTI-/,"") :
+      const code = assignment ? String(assignment.post_code || "") :
         source?.marker === "X" && source.status === "pending" ? "X*" :
         source?.marker === "X" && source.status === "available" ? "" :
         source?.marker || "";
@@ -715,7 +715,7 @@ function renderUtiProposal(report, schedule, unit, shift) {
   const matrix = '<div class="table-scroll uti-matrix-scroll"><table class="uti-preview-matrix"><thead><tr>' +
     '<th class="person-heading">PROFISSIONAL / MASP</th><th class="total-heading">META</th><th class="total-heading">ALOC.</th>' +
     matrixHeaders + '</tr></thead><tbody>' + matrixRows + '</tbody></table></div>' +
-    '<div class="uti-matrix-legend"><b>LEGENDA:</b> códigos numéricos = postos UTI · FO = folga · FR = férias · LM = licença médica · ' +
+    '<div class="uti-matrix-legend"><b>LEGENDA:</b> UTI-01 a UTI-22 = assistência direta · UTI-APOIO-1 e UTI-APOIO-2 = apoios distintos · UTI-MATERIAL = sala de material · UTI-CIRCULANTE = circulante (postos para decisão manual) · FO = folga · FR = férias · LM = licença médica · ' +
     'LMA = licença maternidade · APA = afastamento · REM = remanejamento manual · TP = troca em revisão · REV = conferir · ' +
     'X* = X pendente de revisão · célula vazia = sem alocação proposta.</div>' +
     '<div class="proposal-side-notes">' +
@@ -1104,7 +1104,7 @@ function exportProposalPdf(period = "monthly") {
         else if (code) css = "cell-post";
         return '<td class="'+css+'">'+escapeHtml(code)+'</td>';
       }).join("");
-      const noAllocation = Number(person.expected_shifts || 0) > 0 && allocated === 0;
+      const noAllocation = period === "monthly" && Number(person.expected_shifts || 0) > 0 && allocated === 0;
       return '<tr class="'+(noAllocation ? "person-no-allocation" : "")+'"><td class="person-cell"><b>'+escapeHtml(person.nome)+'</b>' +
         '<small>MASP '+escapeHtml(person.masp)+' · '+escapeHtml(person.categoria || "")+'</small>' +
         (noAllocation ? '<small class="no-allocation-flag">SEM ALOCAÇÃO NA PRÉVIA</small>' : '') + '</td>' +
