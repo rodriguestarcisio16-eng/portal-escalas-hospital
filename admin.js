@@ -11,8 +11,11 @@ let activeStaff = [];
 let activeDayRows = [];
 let lastProposal = null;
 
-const monthStart = "2026-12-01";
-const monthEnd = "2026-12-31";
+function currentMonthStart() { const now = new Date(); return now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-01"; }
+function monthEndFor(start) { const [year,month]=String(start).slice(0,7).split("-").map(Number); const last=new Date(year,month,0); return last.getFullYear()+"-"+String(last.getMonth()+1).padStart(2,"0")+"-"+String(last.getDate()).padStart(2,"0"); }
+function daysInCompetence(start=monthStart) { const [year,month]=String(start).slice(0,7).split("-").map(Number); return new Date(year,month,0).getDate(); }
+let monthStart=currentMonthStart();
+let monthEnd=monthEndFor(monthStart);
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -53,7 +56,7 @@ function renderSkeleton() {
           <h3>Planejamento de escalas</h3>
           <p class="module-lead">Selecione unidade, turno e dia para conferir a disponibilidade antes de montar a proposta.</p>
         </div>
-        <span class="draft-pill">DEZEMBRO 2026 · RASCUNHO</span>
+        <span id="competence-pill" class="draft-pill">COMPETÊNCIA ${new Date(monthStart + "T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).toUpperCase()} · RASCUNHO</span>
       </div>
 
       <section class="filter-card">
@@ -65,6 +68,10 @@ function renderSkeleton() {
           <div class="field-group">
             <label for="schedule-shift">Turno de 12 horas</label>
             <select id="schedule-shift"><option value="">Carregando...</option></select>
+          </div>
+          <div class="field-group">
+            <label for="schedule-month">Mês da escala</label>
+            <input id="schedule-month" type="month" min="${monthStart.slice(0,7)}" value="${monthStart.slice(0,7)}" />
           </div>
           <div class="field-group">
             <label for="schedule-date">Dia da escala</label>
@@ -89,7 +96,7 @@ function renderSkeleton() {
         <div class="panel-heading analysis-heading">
           <div>
             <h4>Pré-análise mensal</h4>
-            <p>Verifica capacidade bruta, marcações pendentes e estrutura nas quatro escalas de dezembro.</p>
+            <p>Verifica capacidade bruta, marcações pendentes e estrutura nas quatro escalas da competência selecionada.</p>
           </div>
           <button id="analyze-month" class="secondary-btn" type="button">Analisar mês inteiro</button>
         </div>
@@ -166,6 +173,19 @@ function renderSkeleton() {
   $("pdf-weekly").addEventListener("click", () => exportProposalPdf("weekly"));
   $("pdf-daily").addEventListener("click", () => exportProposalPdf("daily"));
   $("schedule-date").addEventListener("change", () => { $("pdf-day-date").value = $("schedule-date").value; });
+  $("schedule-month").addEventListener("change", async () => {
+    const chosen=$("schedule-month").value, minimum=currentMonthStart().slice(0,7);
+    if(!chosen || chosen<minimum){$("schedule-month").value=monthStart.slice(0,7);message("Só é possível confeccionar escalas a partir do mês atual.","error");return;}
+    monthStart=chosen+"-01"; monthEnd=monthEndFor(monthStart);
+    const label=new Date(monthStart+"T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).toUpperCase();
+    $("competence-pill").textContent="COMPETÊNCIA "+label+" · RASCUNHO";
+    ["schedule-date","pdf-week-start","pdf-day-date"].forEach(id=>{const el=$(id);el.min=monthStart;el.max=monthEnd;el.value=monthStart;});
+    $("month-analysis").innerHTML='<p class="empty-cell">Clique em “Analisar mês inteiro” para verificar as quatro combinações desta competência.</p>';
+    $("proposal-preview").innerHTML='<p class="empty-cell">Selecione uma unidade e um turno e clique em “Simular mês”.</p>';
+    lastProposal=null; $("generate-proposal").disabled=true;
+    ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id=>{if($(id))$(id).disabled=true;});
+    await loadDay(); await loadSavedProposalHistory();
+  });
   const setPdfButtons = (disabled) => ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = disabled; });
   const invalidateProposal = () => {
     lastProposal = null;
@@ -220,7 +240,7 @@ function renderMonthAnalysis(report) {
 
   const issues = [];
   if (report.missingSchedules.length) {
-    issues.push({level:"blocking", title:"Escala mensal ausente", detail:`${report.missingSchedules.length} combinação(ões) de unidade/turno sem escala de dezembro.`});
+    issues.push({level:"blocking", title:"Escala mensal ausente", detail:`${report.missingSchedules.length} combinação(ões) de unidade/turno sem escala na competência selecionada.`});
   }
   if (report.invalidPostCounts.length) {
     issues.push({level:"blocking", title:"Estrutura de postos incompleta", detail:report.invalidPostCounts.map(x=>`${x.unitName}: ${x.postCount}/${x.expectedPosts}`).join(" · ")});
@@ -235,7 +255,7 @@ function renderMonthAnalysis(report) {
     issues.push({level:"blocking", title:"Outras marcações em revisão", detail:`${report.unknownReviewRows} linha(s) têm situação de revisão que precisa ser esclarecida.`});
   }
   if (report.utI40Count > 0) {
-    issues.push({level:"blocking", title:"Continuidade do rodízio de 40h da UTI", detail:`${report.utI40Count} vínculo(s) de 40h identificados na UTI. A posição final válida de novembro ainda precisa ser vinculada inequivocamente aos profissionais de dezembro.`});
+    issues.push({level:"blocking", title:"Continuidade do rodízio de 40h da UTI", detail:`${report.utI40Count} vínculo(s) de 40h identificados na UTI. Confira a continuidade do rodízio a partir da competência anterior.`});
   }
   issues.push({level:"blocking",title:"Regras individuais ainda não totalmente executadas pelo motor",detail:"As regras nominativas já estão armazenadas no banco privado. A distribuição automática ainda não aplica todos os tipos de restrição e exceção; pares em blocos opostos, escolhas manuais e algumas regras de calendário permanecem em validação."});
   if (report.dailyShortages.length) {
@@ -292,7 +312,7 @@ async function analyzeMonth() {
   const button = $("analyze-month");
   button.disabled = true;
   button.textContent = "Analisando quatro escalas...";
-  analysisMessage("Lendo as quatro escalas, os 31 dias e a estrutura assistencial. Nenhum dado será gravado.", "info");
+  analysisMessage("Lendo as quatro escalas, os dias da competência e a estrutura assistencial. Nenhum dado será gravado.", "info");
   $("month-analysis").innerHTML = '<p class="empty-cell">Análise em andamento...</p>';
 
   try {
@@ -305,7 +325,7 @@ async function analyzeMonth() {
     const resultSets = await Promise.all(expected.map(async spec => {
       const unit = reference.units.find(x=>x.code===spec.unitCode);
       const shift = reference.shifts.find(x=>x.code===spec.shiftCode);
-      const schedule = reference.schedules.find(x=>x.unit_id===unit?.id && x.shift_id===shift?.id);
+      const schedule = reference.schedules.find(x=>x.unit_id===unit?.id && x.shift_id===shift?.id && x.competence===monthStart);
       if (!unit || !shift || !schedule) {
         return {spec,unit,shift,schedule:null,links:[],availability:[],targets:[],posts:[],staff:[]};
       }
@@ -377,8 +397,8 @@ async function analyzeMonth() {
       report.confirmedX+=confirmedX;
       const leaveRows=set.availability.filter(row=>row.availability_status==="leave").length;
       const dailyCounts=[];
-      for(let day=1;day<=31;day++){
-        const date=`2026-12-${String(day).padStart(2,"0")}`;
+      for(let day=1;day<=daysInCompetence(monthStart);day++){
+        const date=`${monthStart.slice(0,7)}-${String(day).padStart(2,"0")}`;
         const count=byDay.get(date)?.confirmed??0;
         dailyCounts.push(count);
         if(count<set.posts.length){
@@ -425,7 +445,7 @@ async function loadReferenceData() {
   const [unitsResult, shiftsResult, schedulesResult] = await Promise.all([
     client.from("units").select("id, code, name").eq("active", true).order("code"),
     client.from("shifts").select("id, code, name, start_time, end_time").order("code"),
-    client.from("monthly_schedules").select("id, competence, unit_id, shift_id, status").eq("competence", monthStart),
+    client.from("monthly_schedules").select("id, competence, unit_id, shift_id, status").gte("competence", currentMonthStart()).order("competence"),
   ]);
 
   for (const result of [unitsResult, shiftsResult, schedulesResult]) {
@@ -448,8 +468,8 @@ async function loadReferenceData() {
   if (uti) $("schedule-unit").value = uti.id;
   if (day) $("schedule-shift").value = day.id;
 
-  if (!reference.units.length || !reference.shifts.length || !reference.schedules.length) {
-    throw new Error("Não foram encontradas unidades, turnos ou escalas de dezembro/2026.");
+  if (!reference.units.length || !reference.shifts.length) {
+    throw new Error("Não foram encontradas unidades ou turnos ativos.");
   }
   message("");
   await loadDay();
@@ -463,12 +483,12 @@ async function loadDay() {
   if (!unitId || !shiftId || !workDate) return;
 
   if (workDate < monthStart || workDate > monthEnd) {
-    message("Selecione uma data entre 1 e 31 de dezembro de 2026.", "error");
+    message("Selecione uma data dentro da competência escolhida.", "error");
     return;
   }
 
   activeSchedule = reference.schedules.find((schedule) =>
-    schedule.unit_id === unitId && schedule.shift_id === shiftId);
+    schedule.unit_id === unitId && schedule.shift_id === shiftId && schedule.competence === monthStart);
 
   const unit = reference.units.find((item) => item.id === unitId);
   const shift = reference.shifts.find((item) => item.id === shiftId);
@@ -640,7 +660,7 @@ async function simulateUtiSchedule(unit, shift) {
   const schedule = reference.schedules.find(item =>
     item.unit_id === unit.id && item.shift_id === shift.id && item.competence === monthStart
   );
-  if (!schedule) throw new Error("Não existe escala de dezembro/2026 para a UTI e o turno selecionados.");
+  if (!schedule) throw new Error("Não existe uma escala cadastrada para a competência escolhida, unidade e turno. Cadastre a competência e importe as disponibilidades/metas antes de simular.");
   if (schedule.status === "published") throw new Error("A competência está publicada. A prévia não pode ser gerada sobre uma escala publicada.");
 
   const [links, availability, posts, targets, ruleRows, stagingRows] = await Promise.all([
@@ -1421,7 +1441,7 @@ async function simulateSelectedSchedule() {
     }
 
     const schedule = reference.schedules.find(x => x.unit_id === unitId && x.shift_id === shiftId && x.competence === monthStart);
-    if (!schedule) throw new Error("Não existe escala de dezembro/2026 para a USI e o turno selecionados.");
+    if (!schedule) throw new Error("Não existe uma escala cadastrada para a competência escolhida, unidade e turno. Cadastre a competência e importe as disponibilidades/metas antes de simular.");
     if (schedule.status === "published") throw new Error("A competência está publicada. O motor não simula sobre uma escala publicada.");
 
     const [links, availability, posts, targets, ruleRows, stagingRows] = await Promise.all([
@@ -1536,8 +1556,8 @@ async function simulateSelectedSchedule() {
     const assignmentCounts = new Map();
     const reportDays = [];
 
-    for (let dayNo = 1; dayNo <= 31; dayNo++) {
-      const date = "2026-12-" + String(dayNo).padStart(2,"0");
+    for (let dayNo = 1; dayNo <= daysInCompetence(monthStart); dayNo++) {
+      const date = monthStart.slice(0,7) + "-" + String(dayNo).padStart(2,"0");
       const dayRows = availabilityByDay.get(date) || [];
       const dayByStaff = new Map();
       const review = [];
