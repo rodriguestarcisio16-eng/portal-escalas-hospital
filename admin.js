@@ -800,6 +800,8 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
     const assignedElsewhere = new Set(day.assignments
       .filter(item => item.post_code !== post.post_code && item.staff_id)
       .map(item => item.staff_id));
+    const canShareBeds = post.post_type === "bed" &&
+      day.assignments.every(item => item.staff_id !== currentId || item.post_type === "bed");
     const eligibleIds = new Set(report.availabilitySnapshot
       .filter(row => row.work_date === day.work_date && row.marker === "X" && row.status === "available" && row.staff_id)
       .map(row => row.staff_id));
@@ -809,7 +811,7 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
     }));
     const options = roster.filter(person =>
       (eligibleIds.has(person.staff_id) || person.staff_id === currentId) &&
-      (!assignedElsewhere.has(person.staff_id) || person.staff_id === currentId)
+      (!assignedElsewhere.has(person.staff_id) || person.staff_id === currentId || canShareBeds)
     ).map(person => {
       const count = monthlyCounts.get(person.staff_id) || 0;
       return '<option value="' + escapeHtml(person.staff_id) + '">' +
@@ -847,9 +849,13 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
       feedbackControl.className = "module-message error";
       return;
     }
-    const duplicate = chosenId ? day.assignments.find(item => item.staff_id === chosenId && item.post_code !== post.post_code) : null;
-    if (duplicate) {
-      feedbackControl.textContent = "Ajuste não aplicado: este profissional já está em outro posto nesta data.";
+    const duplicateAssignments = chosenId
+      ? day.assignments.filter(item => item.staff_id === chosenId && item.post_code !== post.post_code)
+      : [];
+    const canAccumulateBeds = post.post_type === "bed" &&
+      duplicateAssignments.every(item => item.post_type === "bed");
+    if (duplicateAssignments.length && !canAccumulateBeds) {
+      feedbackControl.textContent = "Ajuste não aplicado: a acumulação é permitida somente entre postos de assistência direta (leitos).";
       feedbackControl.className = "module-message error";
       return;
     }
@@ -1020,7 +1026,7 @@ async function loadSavedProposalHistory() {
     .order("proposal_version", { ascending: false })
     .limit(8);
   if (error) {
-    root.innerHTML = '<p class="muted">Não foi possível carregar o histórico. Confira se a migração do gerador foi executada.</p>';
+    root.innerHTML = '<p class="muted">Não foi possível carregar o histórico. Confira se a migração de aprovação/publicação foi executada.</p>';
     return;
   }
   if (!data?.length) {
@@ -1035,17 +1041,80 @@ async function loadSavedProposalHistory() {
     superseded: "Substituída"
   };
   root.innerHTML =
-    '<details class="saved-history-disclosure">' +
+    '<details class="saved-history-disclosure" open>' +
     '<summary class="saved-proposal-heading"><span><b>Histórico de propostas</b><small>' + data.length + ' versão(ões) salvas</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>' +
     '<div class="saved-proposal-list">' + data.map(item => {
       const metrics = item.metrics || {};
       const timestamp = new Date(item.created_at).toLocaleString("pt-BR");
+      const action = schedule.status === "published" ? "" :
+        item.status === "pending_review"
+          ? '<button type="button" class="secondary-btn proposal-workflow-btn" data-proposal-action="approve" data-proposal-id="' + escapeHtml(item.id) + '">Aprovar</button>'
+          : item.status === "approved"
+            ? '<button type="button" class="primary-btn proposal-workflow-btn" data-proposal-action="publish" data-proposal-id="' + escapeHtml(item.id) + '">Publicar escala</button>'
+            : "";
+      const chip = item.status === "approved" ? "success" :
+        item.status === "pending_review" ? "warning" :
+        item.status === "rejected" ? "review" : "neutral";
       return '<div class="saved-proposal-item"><div><b>Proposta v' + escapeHtml(item.proposal_version) +
-        '</b><small>' + escapeHtml(timestamp) + '</small></div><div><span class="status-chip warning">' +
+        '</b><small>' + escapeHtml(timestamp) + '</small></div><div><span class="status-chip ' + chip + '">' +
         escapeHtml(statusLabels[item.status] || item.status) + '</span><small>' +
         escapeHtml(metrics.direct_filled ?? "—") + ' postos preenchidos · ' +
-        escapeHtml(metrics.direct_vacant ?? "—") + ' descobertos</small></div></div>';
+        escapeHtml(metrics.direct_vacant ?? "—") + ' descobertos</small>' + action + '</div></div>';
     }).join("") + '</div></details>';
+
+  root.onclick = async event => {
+    const button = event.target.closest("[data-proposal-action]");
+    if (!button || button.disabled) return;
+    const action = button.dataset.proposalAction;
+    const proposalId = button.dataset.proposalId;
+    if (!proposalId || !["approve","publish"].includes(action)) return;
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = action === "approve" ? "Aprovando..." : "Publicando...";
+    try {
+      const rpcName = action === "approve"
+        ? "admin_approve_schedule_proposal"
+        : "admin_publish_schedule_proposal";
+      const { data, error } = await client.rpc(rpcName, { p_proposal_id: proposalId });
+      if (error) throw new Error(error.message || "Não foi possível concluir a operação.");
+      const result = typeof data === "string" ? JSON.parse(data) : (data ?? {});
+      if (result.blocked) {
+        const lines = (result.uncovered || []).slice(0, 25).map(item =>
+          new Date(item.work_date + "T12:00:00").toLocaleDateString("pt-BR") +
+          " — " + item.post_code + (item.post_name ? " (" + item.post_name + ")" : "")
+        );
+        const more = (result.uncovered_count || 0) > lines.length
+          ? "\\n... e mais " + ((result.uncovered_count || 0) - lines.length) + " posto(s)."
+          : "";
+        const alertText = "PUBLICAÇÃO BLOQUEADA\\n\\n" +
+          (result.message || "Existem postos obrigatórios descobertos.") +
+          "\\n\\nPostos que precisam de cobertura (" + result.uncovered_count + "):\\n" +
+          lines.join("\\n") + more +
+          "\\n\\nVolte à prévia, atribua um profissional a cada posto e salve uma nova proposta para revisão.";
+        window.alert(alertText);
+        proposalMessage("Publicação bloqueada: " + result.uncovered_count +
+          " posto(s) obrigatório(s) descoberto(s). Cubra os postos e salve uma nova proposta.", "error");
+        button.disabled = false;
+        button.textContent = originalText;
+        return;
+      }
+      if (!result.success) throw new Error("A operação não foi confirmada pelo banco.");
+      if (action === "publish") {
+        const currentSchedule = reference.schedules.find(item => item.id === schedule.id);
+        if (currentSchedule) currentSchedule.status = "published";
+        proposalMessage("Escala publicada com sucesso. " + result.assignments_inserted +
+          " alocação(ões) foram gravadas na escala oficial.", "success");
+      } else {
+        proposalMessage("Proposta v" + result.proposal_version +
+          " aprovada. A publicação continua sendo uma etapa separada.", "success");
+      }
+      await loadSavedProposalHistory();
+    } catch (err) {
+      button.disabled = false;
+      button.textContent = originalText;
+      proposalMessage(err.message || "Falha no fluxo de aprovação/publicação.", "error");
+    }
+  };
 }
 
 function exportProposalPdf(period = "monthly") {
