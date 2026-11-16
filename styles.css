@@ -278,3 +278,20 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
 
 .uti-preview-summary{display:flex;flex-wrap:wrap;gap:14px;margin:6px 0 8px;color:#53615c;font-size:10px}
 .uti-preview-summary b{color:#123b36;font-size:13px}
+
+
+/* Painéis expansíveis para reduzir rolagem e manter os detalhes acessíveis */
+.collapsible-panel{padding:0;overflow:hidden}
+.collapsible-heading{margin:0;padding:15px 16px;cursor:pointer;list-style:none;user-select:none}
+.collapsible-heading::-webkit-details-marker{display:none}
+.collapsible-heading:focus-visible{outline:2px solid var(--green2);outline-offset:-3px;border-radius:10px}
+.collapsible-summary-side{display:inline-flex;align-items:center;gap:10px;flex:none}
+.collapse-indicator{width:25px;height:25px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;color:var(--green);background:#fff}
+.collapse-indicator:before{content:"+";font-size:17px;line-height:1;font-weight:600}
+.collapsible-panel[open] .collapse-indicator:before{content:"−"}
+.collapsible-content{padding:0 14px 14px}
+@media(max-width:650px){
+  .collapsible-heading{align-items:flex-start}
+  .collapsible-summary-side{gap:6px}
+  .collapsible-content{padding:0 10px 12px}
+}
