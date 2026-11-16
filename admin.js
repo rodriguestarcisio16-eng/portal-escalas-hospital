@@ -255,7 +255,7 @@ function renderMonthAnalysis(report) {
     issues.push({level:"blocking", title:"Outras marcações em revisão", detail:`${report.unknownReviewRows} linha(s) têm situação de revisão que precisa ser esclarecida.`});
   }
   if (report.utI40Count > 0) {
-    issues.push({level:"blocking", title:"Continuidade do rodízio de 40h da UTI", detail:`${report.utI40Count} vínculo(s) de 40h identificados na UTI. A posição final válida de novembro ainda precisa ser vinculada inequivocamente aos profissionais de dezembro.`});
+    issues.push({level:"blocking", title:"Continuidade do rodízio de 40h da UTI", detail:`${report.utI40Count} vínculo(s) de 40h identificados na UTI. Confira a continuidade do rodízio a partir da competência anterior.`});
   }
   issues.push({level:"blocking",title:"Regras individuais ainda não totalmente executadas pelo motor",detail:"As regras nominativas já estão armazenadas no banco privado. A distribuição automática ainda não aplica todos os tipos de restrição e exceção; pares em blocos opostos, escolhas manuais e algumas regras de calendário permanecem em validação."});
   if (report.dailyShortages.length) {
@@ -325,7 +325,7 @@ async function analyzeMonth() {
     const resultSets = await Promise.all(expected.map(async spec => {
       const unit = reference.units.find(x=>x.code===spec.unitCode);
       const shift = reference.shifts.find(x=>x.code===spec.shiftCode);
-      const schedule = reference.schedules.find(x=>x.unit_id===unit?.id && x.shift_id===shift?.id);
+      const schedule = reference.schedules.find(x=>x.unit_id===unit?.id && x.shift_id===shift?.id && x.competence===monthStart);
       if (!unit || !shift || !schedule) {
         return {spec,unit,shift,schedule:null,links:[],availability:[],targets:[],posts:[],staff:[]};
       }
