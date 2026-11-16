@@ -403,7 +403,7 @@ RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_uid UUID := auth.uid();
   v_schedule_id UUID;
@@ -468,7 +468,7 @@ RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_uid UUID := auth.uid();
   v_schedule_id UUID;
