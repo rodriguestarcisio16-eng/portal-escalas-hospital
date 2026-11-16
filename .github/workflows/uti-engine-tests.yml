@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "admin.js"
+      - "staff-management.js"
       - "uti-engine.mjs"
       - "tests/**"
       - ".github/workflows/uti-engine-tests.yml"
@@ -26,4 +27,5 @@ jobs:
           node-version: 22
       - run: node --test tests/*.test.mjs
       - run: node --check admin.js
+      - run: node --check staff-management.js
       - run: node --check uti-engine.mjs
