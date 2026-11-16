@@ -911,7 +911,7 @@ function renderBlockedUtiProposal() {
   proposalMessage("Simulação UTI interrompida antes da alocação para evitar uma escala que descumpra as regras fornecidas.", "error");
 }
 
-function renderUsiProposal(report, schedule, unit, shift) {
+function renderUsiProposal(report, schedule, unit, shift, editorSelection = {}) {
   let totalFilled = 0;
   let totalVacant = 0;
   let totalExtras = 0;
@@ -963,7 +963,8 @@ function renderUsiProposal(report, schedule, unit, shift) {
       work_date: day.date,
       assignments: day.assignments.map(item => ({
         post_code:item.code, post_name:item.name, staff_id:item.staff?.id ?? null,
-        nome:item.staff?.nome ?? null, masp:item.staff?.masp ?? null
+        nome:item.staff?.nome ?? null, masp:item.staff?.masp ?? null,
+        assignment_method:item.assignment_method ?? null
       })),
       material: day.material
         ? {post_code:"USI-CIRC-MAT",post_name:"Circulação e sala de material",staff_id:day.material.id,nome:day.material.nome,masp:day.material.masp}
@@ -999,6 +1000,15 @@ function renderUsiProposal(report, schedule, unit, shift) {
   $("generate-proposal").textContent = "Salvar para revisão";
   ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { $(id).disabled = false; });
 
+  const manualEditor = '<details class="uti-manual-editor">' +
+    '<summary><span><b>Completar postos descobertos manualmente</b><small>É permitido atribuir dois ou mais leitos ao mesmo profissional, desde que tenha X confirmado.</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>' +
+    '<div class="uti-manual-editor-body"><div class="uti-manual-fields">' +
+    '<label>Data<select id="usi-manual-date">' + report.days.map(day => '<option value="' + escapeHtml(day.date) + '">' + escapeHtml(new Date(day.date + "T12:00:00").toLocaleDateString("pt-BR")) + '</option>').join("") + '</select></label>' +
+    '<label>Leito<select id="usi-manual-post"></select></label>' +
+    '<label>Profissional com X confirmado<select id="usi-manual-staff"><option value="">— Deixar descoberto —</option></select></label>' +
+    '</div><p class="uti-manual-warning">A acumulação é permitida somente entre leitos. O mesmo profissional não pode acumular o posto combinado de circulação/material. As restrições individuais continuam sendo verificadas ao salvar.</p>' +
+    '<button id="usi-manual-apply" type="button" class="secondary-btn">Aplicar ajuste na prévia</button>' +
+    '<p id="usi-manual-feedback" class="module-message" role="status"></p></div></details>';
   $("proposal-preview").innerHTML =
     '<div class="engine-summary-grid">' +
       '<div><strong>' + report.days.length + '</strong><small>dias simulados</small></div>' +
@@ -1007,7 +1017,90 @@ function renderUsiProposal(report, schedule, unit, shift) {
       '<div><strong>' + totalExtras + '</strong><small>excedentes (somatório diário)</small></div>' +
     '</div>' +
     '<div class="engine-method"><b>Critério provisório de distribuição direta</b><p>Entre os profissionais elegíveis com X confirmado, o motor equilibra a quantidade de alocações ao longo do mês, respeitando os postos em sequência. Esse critério de equilíbrio é uma proposta de trabalho, não uma regra assistencial previamente aprovada.</p><p>Material/circulação segue a prioridade nominativa informada. O apoio da USI permanece em branco. A simulação não grava na tabela assignments.</p></div>' +
-    warnings + '<div class="proposal-days">' + cards + '</div>';
+    warnings + manualEditor + '<div class="proposal-days">' + cards + '</div>';
+
+  const dateControl = $("usi-manual-date");
+  const postControl = $("usi-manual-post");
+  const staffControl = $("usi-manual-staff");
+  const feedbackControl = $("usi-manual-feedback");
+  const refreshStaffOptions = () => {
+    const day = report.days.find(item => item.date === dateControl.value);
+    const post = day?.assignments.find(item => item.code === postControl.value);
+    if (!day || !post) return;
+    const currentId = post.staff?.id || "";
+    const markerRows = report.availabilitySnapshot.find(item => item.work_date === day.date)?.markers || [];
+    const eligibleIds = new Set(markerRows.filter(item => item.marker === "X" && item.status === "available").map(item => item.staff_id));
+    const materialId = day.material?.id || null;
+    const assignedDates = new Map();
+    report.days.forEach(item => item.assignments.forEach(assignment => {
+      if (!assignment.staff?.id) return;
+      if (!assignedDates.has(assignment.staff.id)) assignedDates.set(assignment.staff.id, new Set());
+      assignedDates.get(assignment.staff.id).add(item.date);
+    }));
+    const assignedToday = new Set(day.assignments.filter(item => item.staff?.id && item.code !== post.code).map(item => item.staff.id));
+    const options = report.staffRoster.filter(person => {
+      if (person.staff_id === materialId) return false;
+      if (!(eligibleIds.has(person.staff_id) || person.staff_id === currentId)) return false;
+      const alreadyOnBed = assignedToday.has(person.staff_id);
+      const count = assignedDates.get(person.staff_id)?.size || 0;
+      return (alreadyOnBed || count < Number(person.expected_shifts ?? 0) || person.staff_id === currentId);
+    }).map(person => {
+      const count = assignedDates.get(person.staff_id)?.size || 0;
+      return '<option value="' + escapeHtml(person.staff_id) + '">' + escapeHtml(person.nome) +
+        ' · MASP ' + escapeHtml(person.masp || "—") + ' · meta ' + escapeHtml(person.expected_shifts ?? "—") +
+        ' · plantões ' + count + '</option>';
+    }).join("");
+    staffControl.innerHTML = '<option value="">— Deixar descoberto —</option>' + options;
+    staffControl.value = currentId;
+  };
+  const refreshPostOptions = preferred => {
+    const day = report.days.find(item => item.date === dateControl.value);
+    const selected = day?.assignments.find(item => item.code === preferred) ||
+      day?.assignments.find(item => !item.staff) || day?.assignments[0];
+    postControl.innerHTML = (day?.assignments || []).map(item =>
+      '<option value="' + escapeHtml(item.code) + '">' + escapeHtml(item.code) + (item.staff ? ' · ' + escapeHtml(item.staff.nome) : ' · descoberto') + '</option>'
+    ).join("");
+    if (selected) postControl.value = selected.code;
+    refreshStaffOptions();
+  };
+  dateControl.value = editorSelection.date || report.days[0]?.date || "";
+  refreshPostOptions(editorSelection.postCode);
+  dateControl.addEventListener("change", () => refreshPostOptions());
+  postControl.addEventListener("change", refreshStaffOptions);
+  $("usi-manual-apply").addEventListener("click", () => {
+    const day = report.days.find(item => item.date === dateControl.value);
+    const post = day?.assignments.find(item => item.code === postControl.value);
+    if (!day || !post) return;
+    const chosenId = staffControl.value || null;
+    const marker = report.availabilitySnapshot.find(item => item.work_date === day.date)?.markers
+      .find(item => item.staff_id === chosenId);
+    const chosen = chosenId ? report.staffRoster.find(item => item.staff_id === chosenId) : null;
+    if (chosenId && (!chosen || !marker || marker.marker !== "X" || marker.status !== "available")) {
+      feedbackControl.textContent = "Ajuste não aplicado: selecione alguém com X confirmado nesta data.";
+      feedbackControl.className = "module-message error";
+      return;
+    }
+    if (chosenId && day.material?.id === chosenId) {
+      feedbackControl.textContent = "Ajuste não aplicado: quem está em circulação/material não pode acumular leito neste plantão.";
+      feedbackControl.className = "module-message error";
+      return;
+    }
+    const previousId = post.staff?.id || null;
+    post.staff = chosen ? {id:chosen.staff_id,nome:chosen.nome,masp:chosen.masp} : null;
+    post.assignment_method = chosen ? "manual_override" : "manual_review";
+    if (previousId && previousId !== chosenId) {
+      const previous = report.staffRoster.find(person => person.staff_id === previousId);
+      if (previous && !day.extras.some(person => person.id === previousId)) {
+        day.extras.push({id:previous.staff_id,nome:previous.nome,masp:previous.masp});
+      }
+    }
+    if (chosenId) day.extras = day.extras.filter(person => person.id !== chosenId);
+    day.filled = day.assignments.filter(item => item.staff).length;
+    day.vacant = day.assignments.length - day.filled;
+    day.notes = [...(day.notes || []), "Ajuste manual de cobertura aplicado pelo responsável; conferir restrições individuais antes da aprovação."];
+    renderUsiProposal(report, schedule, unit, shift, {date:day.date,postCode:post.code});
+    proposalMessage("Ajuste manual aplicado somente na prévia. Salve uma nova proposta para revisão quando terminar.", "success");
+  });
   proposalMessage("Simulação da USI concluída em memória. " + totalFilled + " postos diretos preenchidos e " + totalVacant + " descobertos no conjunto dos 31 dias. Nada foi gravado. A prévia pode ser salva para revisão.", "success");
 }
 
