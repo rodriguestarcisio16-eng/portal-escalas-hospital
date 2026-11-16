@@ -858,7 +858,10 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
     post.nome = chosen?.nome || null;
     post.masp = chosen?.masp || null;
     post.assignment_method = chosen ? "manual_override" : "manual_review";
-    if (chosenId) day.manual_candidates = (day.manual_candidates || []).filter(person => person.staff_id !== chosenId);
+    if (chosenId) {
+      day.manual_candidates = (day.manual_candidates || []).filter(person => person.staff_id !== chosenId);
+      day.extras = (day.extras || []).filter(person => person.staff_id !== chosenId);
+    }
     if (previousId && previousId !== chosenId) {
       const previous = roster.find(person => person.staff_id === previousId);
       if (previous && !(day.manual_candidates || []).some(person => person.staff_id === previousId)) {
