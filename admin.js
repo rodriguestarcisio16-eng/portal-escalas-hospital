@@ -749,9 +749,8 @@ function renderUtiProposal(report, schedule, unit, shift) {
   lastProposal = {scheduleId: schedule.id, proposalData, metrics};
   $("generate-proposal").disabled = false;
   $("generate-proposal").textContent = "Salvar para revisão";
-  // Os PDFs atuais possuem cabeçalho e legenda específicos da USI. Serão habilitados
-  // para a UTI após a revisão do layout definitivo, evitando emitir documento incorreto.
-  ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = true; });
+  // A prévia UTI já possui dados para os três formatos de documento.
+  ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = false; });
   $("proposal-preview").innerHTML =
     '<div class="engine-summary-grid">' +
     '<div><strong>' + report.days.length + '</strong><small>dias simulados</small></div>' +
@@ -1077,7 +1076,9 @@ function exportProposalPdf(period = "monthly") {
       (day.assignments || []).forEach(item => { if (item.staff_id) periodCounts.set(item.staff_id,(periodCounts.get(item.staff_id)||0)+1); });
       if (day.material?.staff_id) periodCounts.set(day.material.staff_id,(periodCounts.get(day.material.staff_id)||0)+1);
     });
-    const periodRoster = roster.filter(person => (periodCounts.get(person.staff_id)||0) > 0);
+    const periodRoster = unit.code === "UTI_ADULTO"
+        ? roster
+        : roster.filter(person => (periodCounts.get(person.staff_id)||0) > 0);
     const rows = periodRoster.map(person => {
       const allocated = periodCounts.get(person.staff_id) || 0;
       const cells = selectedDays.map(day => {
@@ -1107,7 +1108,10 @@ function exportProposalPdf(period = "monthly") {
       '<table class="matrix '+(period === "monthly" ? "matrix-month" : "matrix-week")+'"><thead><tr>' +
       '<th class="person-heading">PROFISSIONAL / MASP</th><th class="total-heading">META</th>' +
       '<th class="total-heading">ALOC.</th>'+headers+'</tr></thead><tbody>'+rows+'</tbody></table>' +
-      '<div class="pdf-legend"><b>LEGENDA:</b> 01–11 = postos USI-01 a USI-11 · CM = circulação/material · ' +
+      '<div class="pdf-legend"><b>LEGENDA:</b> ' +
+      (unit.code === "UTI_ADULTO"
+        ? 'Códigos numéricos = postos assistenciais UTI cadastrados · APOIO/serviços = postos de conferência manual · '
+        : '01–11 = postos USI-01 a USI-11 · CM = circulação/material · ') +
       'FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento · ' +
       'REM = remanejamento manual · TP = troca em revisão · REV = conferir · X* = X pendente de revisão. ' +
       'Célula vazia = sem alocação proposta. A meta e a alocação são contagens independentes.</div>';
@@ -1118,7 +1122,8 @@ function exportProposalPdf(period = "monthly") {
       '<td>'+(item.staff_id ? escapeHtml(item.nome || "—") : '<span class="not-filled">SEM COBERTURA</span>')+'</td>' +
       '<td>'+escapeHtml(item.masp || "—")+'</td></tr>'
     ).join("");
-    const materialRow = '<tr><td><b>USI-CIRC-MAT</b><small>'+escapeHtml(day.material?.post_name || 'Circulação / material')+'</small></td>' +
+    const materialRow = unit.code === "UTI_ADULTO" ? "" :
+      '<tr><td><b>USI-CIRC-MAT</b><small>'+escapeHtml(day.material?.post_name || 'Circulação / material')+'</small></td>' +
       '<td>'+(day.material?.staff_id ? escapeHtml(day.material.nome || "—") : '<span class="not-filled">SEM INDICAÇÃO</span>')+'</td>' +
       '<td>'+escapeHtml(day.material?.masp || "—")+'</td></tr>';
     const extras = (day.extras || []).map(person =>
@@ -1129,6 +1134,9 @@ function exportProposalPdf(period = "monthly") {
       escapeHtml(item.marker)+' — '+escapeHtml(item.staff?.nome || "sem identificação")+
       ' — linha '+escapeHtml(item.source_row || "—")).join("<br>") || "Nenhuma";
     const notes = (day.notes || []).map(escapeHtml).join("<br>") || "Nenhuma";
+    const manualCandidates = (day.manual_candidates || []).map(person =>
+      escapeHtml(person.nome) + ' (' + escapeHtml(person.masp || "—") + ') — ' + escapeHtml(person.reason)
+    ).join("<br>") || "Nenhum";
     bodyHtml =
       '<div class="pdf-range">'+escapeHtml(new Date(day.work_date+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}))+'</div>' +
       '<table class="daily"><thead><tr><th>POSTO</th><th>PROFISSIONAL PROPOSTO</th><th>MASP</th></tr></thead>' +
@@ -1136,6 +1144,7 @@ function exportProposalPdf(period = "monthly") {
       '<div class="daily-notes"><section><b>Disponíveis fora dos postos diretos</b><p>'+extras+'</p></section>' +
       '<section><b>REM — fora da distribuição automática</b><p>'+rem+'</p></section>' +
       '<section><b>Marcações para conferência</b><p>'+reviews+'</p></section>' +
+      (unit.code === "UTI_ADULTO" ? '<section><b>Profissionais para decisão manual</b><p>'+manualCandidates+'</p></section>' : '') +
       '<section><b>Observações do motor</b><p>'+notes+'</p></section></div>';
   }
 
