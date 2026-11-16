@@ -1293,7 +1293,7 @@ function exportProposalPdf(period = "monthly") {
     '.cell-status{color:#65736d}.cell-review{color:#a24c19;background:#fff5e9;font-weight:700}.cell-empty{color:#bbc4bf}' +
     '.pdf-legend{margin-top:7px;padding:6px;border:1px solid #dce3df;color:#53615c;font-size:6.5px;line-height:1.5}' +
     '.daily th{background:#eaf0ed;color:#40534c;text-align:left;font-size:8px;padding:6px}.daily td{text-align:left;font-size:9px;padding:6px}' +
-    '.daily td:first-child{width:32%}.daily td small{display:block;color:#65736d;margin-top:2px}.not-filled{color:#9a6416;font-size:8px;font-weight:700}' +
+    '.daily td:first-child{width:32%}.daily td small{display:block;color:#65736d;margin-top:2px}.not-filled{color:#9a6416;font-size:8px;font-weight:700}.manual-pending{color:#8a6418;font-size:8px;font-weight:700}' +
     '.daily-notes{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:10px}.daily-notes section{border:1px solid #dce3df;padding:7px}' +
     '.daily-notes b{font-size:8px}.daily-notes p{margin:4px 0 0;color:#53615c;font-size:8px;line-height:1.4}' +
     '.pdf-footer{margin-top:8px;padding-top:5px;border-top:1px solid #dce3df;color:#71807a;font-size:7px;line-height:1.4}' +
