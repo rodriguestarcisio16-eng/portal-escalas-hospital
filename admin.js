@@ -765,17 +765,10 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
   // A prévia UTI já possui dados para os três formatos de documento.
   ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = false; });
   const manualEditor = '<details class="uti-manual-editor">' +
-    '<summary><span><b>Ajustar distribuição manualmente</b><small>Escolha uma data, um posto e um profissional disponível confirmado (X).</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>' +
-    '<div class="uti-manual-editor-body">' +
-    '<div class="uti-manual-fields">' +
-    '<label>Data<select id="uti-manual-date">' + report.days.map(day => '<option value="' + escapeHtml(day.work_date) + '">' + escapeHtml(new Date(day.work_date + "T12:00:00").toLocaleDateString("pt-BR")) + '</option>').join("") + '</select></label>' +
-    '<label>Posto<select id="uti-manual-post"></select></label>' +
-    '<label>Profissional disponível<select id="uti-manual-staff"><option value="">— Deixar sem indicação —</option></select></label>' +
-    '</div>' +
-    '<p class="uti-manual-warning">A seleção manual registra a decisão do responsável, mas não valida automaticamente rodízio, pares/blocos ou exclusividades. Confira essas regras antes de salvar a proposta.</p>' +
-    '<button id="uti-manual-apply" type="button" class="secondary-btn">Aplicar ajuste na prévia</button>' +
-    '<p id="uti-manual-feedback" class="module-message" role="status"></p>' +
-    '</div></details>';
+    '<summary><span><b>Lista de ajustes manuais</b><small>Adicione vários postos e profissionais; aplique tudo de uma vez.</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>' +
+    '<div class="uti-manual-editor-body"><label>Data do plantão<select id="uti-batch-date">' + report.days.map(day => '<option value="' + escapeHtml(day.work_date) + '">' + escapeHtml(new Date(day.work_date + "T12:00:00").toLocaleDateString("pt-BR")) + '</option>').join("") + '</select></label>' +
+    '<div id="uti-batch-rows"></div><div class="generator-actions"><button id="uti-batch-add" type="button" class="secondary-btn">+ Adicionar ajuste</button><button id="uti-batch-apply" type="button" class="primary-btn">Aplicar lista de ajustes</button></div>' +
+    '<p class="uti-manual-warning">Somente leitos podem ser acumulados. Apoio, material e circulante não podem ser acumulados com outro posto. Confira as regras operacionais antes de salvar.</p><p id="uti-batch-feedback" class="module-message" role="status"></p></div></details>';
   $("proposal-preview").innerHTML =
     '<div class="engine-summary-grid">' +
     '<div><strong>' + report.days.length + '</strong><small>dias simulados</small></div>' +
@@ -785,106 +778,49 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
     '<div class="engine-method"><b>Prévia UTI · UTI_PREVIEW_V1</b><p>As alocações seguem as regras nominativas e as restrições cadastradas. Profissionais de 40h sem continuidade inequívoca do rodízio, regras de pares/blocos e postos sem indicação segura ficam destacados para decisão manual. REM aparece separado e não ocupa posto automaticamente.</p><p>Esta prévia não é escala oficial e não foi publicada.</p></div>' +
     warnings + '<div class="uti-preview-summary"><span><b>' + roster.length + '</b> profissionais vinculados</span><span><b>' + report.days.length + '</b> dias exibidos</span><span><b>' + totalAssignments + '</b> alocações propostas</span></div>' +
     matrix + manualEditor;
-  const dateControl = $("uti-manual-date");
-  const postControl = $("uti-manual-post");
-  const staffControl = $("uti-manual-staff");
-  const feedbackControl = $("uti-manual-feedback");
-  const refreshStaffOptions = () => {
-    const day = report.days.find(item => item.work_date === dateControl.value);
-    const post = day?.assignments.find(item => item.post_code === postControl.value);
-    if (!day || !post) {
-      staffControl.innerHTML = '<option value="">— Deixar sem indicação —</option>';
-      return;
-    }
-    const currentId = post.staff_id || "";
-    const assignedElsewhere = new Set(day.assignments
-      .filter(item => item.post_code !== post.post_code && item.staff_id)
-      .map(item => item.staff_id));
-    const eligibleIds = new Set(report.availabilitySnapshot
-      .filter(row => row.work_date === day.work_date && row.marker === "X" && row.status === "available" && row.staff_id)
-      .map(row => row.staff_id));
-    const monthlyDates = new Map();
-    report.days.forEach(item => item.assignments.forEach(assignment => {
-      if (!assignment.staff_id) return;
-      if (!monthlyDates.has(assignment.staff_id)) monthlyDates.set(assignment.staff_id, new Set());
-      monthlyDates.get(assignment.staff_id).add(item.work_date);
-    }));
-    const monthlyCounts = new Map([...monthlyDates].map(([staffId, dates]) => [staffId, dates.size]));
-    const options = roster.filter(person =>
-      (eligibleIds.has(person.staff_id) || person.staff_id === currentId) &&
-      (!assignedElsewhere.has(person.staff_id) || person.staff_id === currentId ||
-        (post.post_type === "bed" && day.assignments
-          .filter(item => item.staff_id === person.staff_id && item.post_code !== post.post_code)
-          .every(item => item.post_type === "bed")))
-    ).map(person => {
-      const count = monthlyCounts.get(person.staff_id) || 0;
-      return '<option value="' + escapeHtml(person.staff_id) + '">' +
-        escapeHtml(person.nome) + ' · MASP ' + escapeHtml(person.masp || "—") +
-        ' · meta ' + escapeHtml(person.expected_shifts ?? "—") + ' · alocados ' + count + '</option>';
-    }).join("");
-    staffControl.innerHTML = '<option value="">— Deixar sem indicação —</option>' + options;
-    staffControl.value = currentId;
+  const batchDate = $("uti-batch-date"), batchRows = $("uti-batch-rows"), feedback = $("uti-batch-feedback");
+  const addRow = () => {
+    const day = report.days.find(x => x.work_date === batchDate.value); if (!day) return;
+    const row = document.createElement("div"); row.className = "uti-manual-fields uti-batch-row";
+    row.innerHTML = '<label>Posto<select class="batch-post">' + day.assignments.map(x => '<option value="' + escapeHtml(x.post_code) + '">' + escapeHtml(x.post_code) + ' · ' + escapeHtml(x.post_name || "Posto") + '</option>').join("") + '</select></label><label>Profissional<select class="batch-staff"></select></label><button type="button" class="secondary-btn batch-remove">Remover</button>';
+    batchRows.appendChild(row);
+    const refresh = () => {
+      const post=day.assignments.find(x=>x.post_code===row.querySelector(".batch-post").value);
+      const used=new Set([...batchRows.querySelectorAll(".uti-batch-row")].filter(x=>x!==row).map(x=>x.querySelector(".batch-staff").value).filter(Boolean));
+      const eligible=new Set(report.availabilitySnapshot.filter(x=>x.work_date===day.work_date&&x.marker==="X"&&x.status==="available").map(x=>x.staff_id));
+      const assignedToday=new Set(day.assignments.filter(x=>x.staff_id).map(x=>x.staff_id));
+      const usedDays=id=>report.days.filter(d=>d.assignments.some(x=>x.staff_id===id)).length;
+      const opts=roster.filter(p=>{
+        if(!eligible.has(p.staff_id)&&p.staff_id!==post?.staff_id)return false;
+        if(!assignedToday.has(p.staff_id)&&usedDays(p.staff_id)>=Number(p.expected_shifts??0))return false;
+        if(!used.has(p.staff_id))return true;
+        const other=[...batchRows.querySelectorAll(".uti-batch-row")].filter(x=>x!==row&&x.querySelector(".batch-staff").value===p.staff_id).map(x=>day.assignments.find(a=>a.post_code===x.querySelector(".batch-post").value));
+        return post?.post_type==="bed"&&other.every(x=>x?.post_type==="bed");
+      }).map(p=>'<option value="'+escapeHtml(p.staff_id)+'">'+escapeHtml(p.nome)+' · MASP '+escapeHtml(p.masp||"—")+' · meta '+escapeHtml(p.expected_shifts??"—")+'</option>').join("");
+      const select=row.querySelector(".batch-staff"); select.innerHTML='<option value="">— Deixar descoberto —</option>'+opts; if(post?.staff_id)select.value=post.staff_id;
+    };
+    row.querySelector(".batch-post").addEventListener("change",refresh); row.querySelector(".batch-remove").addEventListener("click",()=>row.remove()); refresh();
   };
-  const refreshPostOptions = (preferredPost) => {
-    const day = report.days.find(item => item.work_date === dateControl.value);
-    const selected = day?.assignments.find(item => item.post_code === preferredPost) ||
-      day?.assignments.find(item => !item.staff_id) || day?.assignments[0];
-    postControl.innerHTML = (day?.assignments || []).map(item =>
-      '<option value="' + escapeHtml(item.post_code) + '">' + escapeHtml(item.post_code) +
-      ' · ' + escapeHtml(item.post_name || "Posto") + (item.staff_id ? ' · ' + escapeHtml(item.nome || "ocupado") : ' · sem indicação') +
-      '</option>'
-    ).join("");
-    if (selected) postControl.value = selected.post_code;
-    refreshStaffOptions();
-  };
-  dateControl.value = editorSelection.date || report.days[0]?.work_date || "";
-  refreshPostOptions(editorSelection.postCode);
-  dateControl.addEventListener("change", () => refreshPostOptions());
-  postControl.addEventListener("change", refreshStaffOptions);
-  $("uti-manual-apply").addEventListener("click", () => {
-    const day = report.days.find(item => item.work_date === dateControl.value);
-    const post = day?.assignments.find(item => item.post_code === postControl.value);
-    if (!day || !post) return;
-    const chosenId = staffControl.value || null;
-    const chosen = chosenId ? roster.find(person => person.staff_id === chosenId) : null;
-    const marker = report.availabilitySnapshot.find(row => row.work_date === day.work_date && row.staff_id === chosenId);
-    if (chosenId && (!chosen || !marker || marker.marker !== "X" || marker.status !== "available")) {
-      feedbackControl.textContent = "Ajuste não aplicado: selecione alguém com X confirmado nesta data.";
-      feedbackControl.className = "module-message error";
-      return;
+  batchDate.value=editorSelection.date||report.days[0]?.work_date||"";
+  addRow(); batchDate.addEventListener("change",()=>{batchRows.innerHTML="";addRow();});
+  $("uti-batch-add").addEventListener("click",addRow);
+  $("uti-batch-apply").addEventListener("click",()=>{
+    const day=report.days.find(x=>x.work_date===batchDate.value), rows=[...batchRows.querySelectorAll(".uti-batch-row")];
+    const selections=rows.map(row=>({post:day?.assignments.find(x=>x.post_code===row.querySelector(".batch-post").value),staffId:row.querySelector(".batch-staff").value||null}));
+    const codes=selections.map(x=>x.post?.post_code);
+    if(!day||!rows.length||selections.some(x=>!x.post)||new Set(codes).size!==codes.length){feedback.textContent="Informe pelo menos um ajuste e escolha postos diferentes.";feedback.className="module-message error";return;}
+    const byStaff=new Map(); selections.forEach(x=>{if(x.staffId){if(!byStaff.has(x.staffId))byStaff.set(x.staffId,[]);byStaff.get(x.staffId).push(x.post);}});
+    for(const [id,posts] of byStaff){
+      const marker=report.availabilitySnapshot.find(x=>x.work_date===day.work_date&&x.staff_id===id);
+      const existing=day.assignments.filter(x=>x.staff_id===id&&!codes.includes(x.post_code));
+      if(!marker||marker.marker!=="X"||marker.status!=="available"){feedback.textContent="Todos os profissionais precisam ter X confirmado na data.";feedback.className="module-message error";return;}
+      if([...existing,...posts].length>1&&[...existing,...posts].some(x=>x.post_type!=="bed")){feedback.textContent="Somente leitos podem ser acumulados pelo mesmo profissional.";feedback.className="module-message error";return;}
     }
-    const duplicateAssignments = chosenId
-      ? day.assignments.filter(item => item.staff_id === chosenId && item.post_code !== post.post_code)
-      : [];
-    const canAccumulateBeds = post.post_type === "bed" &&
-      duplicateAssignments.every(item => item.post_type === "bed");
-    if (duplicateAssignments.length && !canAccumulateBeds) {
-      feedbackControl.textContent = "Ajuste não aplicado: a acumulação é permitida somente entre postos de assistência direta (leitos).";
-      feedbackControl.className = "module-message error";
-      return;
-    }
-    const previousId = post.staff_id;
-    post.staff_id = chosen?.staff_id || null;
-    post.nome = chosen?.nome || null;
-    post.masp = chosen?.masp || null;
-    post.assignment_method = chosen ? "manual_override" : "manual_review";
-    if (chosenId) {
-      day.manual_candidates = (day.manual_candidates || []).filter(person => person.staff_id !== chosenId);
-      day.extras = (day.extras || []).filter(person => person.staff_id !== chosenId);
-    }
-    if (previousId && previousId !== chosenId) {
-      const previous = roster.find(person => person.staff_id === previousId);
-      if (previous && !(day.manual_candidates || []).some(person => person.staff_id === previousId)) {
-        day.manual_candidates.push({staff_id:previous.staff_id,nome:previous.nome,masp:previous.masp,reason:"Liberado após ajuste manual; conferir nova destinação"});
-      }
-    }
-    day.filled = day.assignments.filter(item => item.staff_id).length;
-    day.vacant = day.assignments.length - day.filled;
-    day.notes = [...(day.notes || []), "Ajuste manual realizado na prévia pelo responsável; conferir regras operacionais antes da aprovação."];
-    renderUtiProposal(report, schedule, unit, shift, {date:day.work_date,postCode:post.post_code});
-    proposalMessage("Ajuste manual aplicado somente na prévia. Gere novamente os PDFs ou salve a proposta para revisão quando terminar.", "success");
+    selections.forEach(({post,staffId})=>{const old=post.staff_id,person=staffId?roster.find(x=>x.staff_id===staffId):null;post.staff_id=person?.staff_id||null;post.nome=person?.nome||null;post.masp=person?.masp||null;post.assignment_method=person?"manual_override":"manual_review";if(old&&old!==staffId){const prev=roster.find(x=>x.staff_id===old);if(prev&&!day.manual_candidates.some(x=>x.staff_id===old))day.manual_candidates.push({staff_id:prev.staff_id,nome:prev.nome,masp:prev.masp,reason:"Liberado após ajuste manual; conferir nova destinação"});}if(staffId){day.manual_candidates=day.manual_candidates.filter(x=>x.staff_id!==staffId);day.extras=day.extras.filter(x=>x.staff_id!==staffId);}});
+    day.filled=day.assignments.filter(x=>x.staff_id).length;day.vacant=day.assignments.length-day.filled;day.notes=[...(day.notes||[]),selections.length+" ajuste(s) manual(is) aplicados em lote."];
+    renderUtiProposal(report,schedule,unit,shift,{date:day.work_date,postCode:selections[0].post.post_code});proposalMessage(selections.length+" ajuste(s) aplicado(s) na prévia. Nada foi publicado.","success");
   });
-  proposalMessage("Prévia da UTI gerada em memória. " + totalFilled + " indicações e " + totalVacant + " postos para revisão no conjunto dos " + report.days.length + " dias. Nada foi publicado.", "success");
+  proposalMessage("Prévia UTI gerada em memória. Nada foi publicado.", "success");
 }
 
 function renderBlockedUtiProposal() {
@@ -1000,15 +936,10 @@ function renderUsiProposal(report, schedule, unit, shift, editorSelection = {}) 
   $("generate-proposal").textContent = "Salvar para revisão";
   ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { $(id).disabled = false; });
 
-  const manualEditor = '<details class="uti-manual-editor">' +
-    '<summary><span><b>Completar postos descobertos manualmente</b><small>É permitido atribuir dois ou mais leitos ao mesmo profissional, desde que tenha X confirmado.</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>' +
-    '<div class="uti-manual-editor-body"><div class="uti-manual-fields">' +
-    '<label>Data<select id="usi-manual-date">' + report.days.map(day => '<option value="' + escapeHtml(day.date) + '">' + escapeHtml(new Date(day.date + "T12:00:00").toLocaleDateString("pt-BR")) + '</option>').join("") + '</select></label>' +
-    '<label>Leito<select id="usi-manual-post"></select></label>' +
-    '<label>Profissional com X confirmado<select id="usi-manual-staff"><option value="">— Deixar descoberto —</option></select></label>' +
-    '</div><p class="uti-manual-warning">A acumulação é permitida somente entre leitos. O mesmo profissional não pode acumular o posto combinado de circulação/material. As restrições individuais continuam sendo verificadas ao salvar.</p>' +
-    '<button id="usi-manual-apply" type="button" class="secondary-btn">Aplicar ajuste na prévia</button>' +
-    '<p id="usi-manual-feedback" class="module-message" role="status"></p></div></details>';
+  const manualEditor = '<details class="uti-manual-editor"><summary><span><b>Lista de ajustes manuais</b><small>Adicione vários leitos e profissionais; aplique tudo de uma vez.</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>' +
+    '<div class="uti-manual-editor-body"><label>Data do plantão<select id="usi-batch-date">' + report.days.map(day => '<option value="' + escapeHtml(day.date) + '">' + escapeHtml(new Date(day.date + "T12:00:00").toLocaleDateString("pt-BR")) + '</option>').join("") + '</select></label><div id="usi-batch-rows"></div>' +
+    '<div class="generator-actions"><button id="usi-batch-add" type="button" class="secondary-btn">+ Adicionar ajuste</button><button id="usi-batch-apply" type="button" class="primary-btn">Aplicar lista de ajustes</button></div>' +
+    '<p class="uti-manual-warning">Somente leitos podem ser acumulados. O posto combinado de circulação/material não pode ser acumulado.</p><p id="usi-batch-feedback" class="module-message" role="status"></p></div></details>';
   $("proposal-preview").innerHTML =
     '<div class="engine-summary-grid">' +
       '<div><strong>' + report.days.length + '</strong><small>dias simulados</small></div>' +
@@ -1019,89 +950,40 @@ function renderUsiProposal(report, schedule, unit, shift, editorSelection = {}) 
     '<div class="engine-method"><b>Critério provisório de distribuição direta</b><p>Entre os profissionais elegíveis com X confirmado, o motor equilibra a quantidade de alocações ao longo do mês, respeitando os postos em sequência. Esse critério de equilíbrio é uma proposta de trabalho, não uma regra assistencial previamente aprovada.</p><p>Material/circulação segue a prioridade nominativa informada. O apoio da USI permanece em branco. A simulação não grava na tabela assignments.</p></div>' +
     warnings + manualEditor + '<div class="proposal-days">' + cards + '</div>';
 
-  const dateControl = $("usi-manual-date");
-  const postControl = $("usi-manual-post");
-  const staffControl = $("usi-manual-staff");
-  const feedbackControl = $("usi-manual-feedback");
-  const refreshStaffOptions = () => {
-    const day = report.days.find(item => item.date === dateControl.value);
-    const post = day?.assignments.find(item => item.code === postControl.value);
-    if (!day || !post) return;
-    const currentId = post.staff?.id || "";
-    const markerRows = report.availabilitySnapshot.find(item => item.work_date === day.date)?.markers || [];
-    const eligibleIds = new Set(markerRows.filter(item => item.marker === "X" && item.status === "available").map(item => item.staff_id));
-    const materialId = day.material?.id || null;
-    const assignedDates = new Map();
-    report.days.forEach(item => item.assignments.forEach(assignment => {
-      if (!assignment.staff?.id) return;
-      if (!assignedDates.has(assignment.staff.id)) assignedDates.set(assignment.staff.id, new Set());
-      assignedDates.get(assignment.staff.id).add(item.date);
-    }));
-    const assignedToday = new Set(day.assignments.filter(item => item.staff?.id && item.code !== post.code).map(item => item.staff.id));
-    const options = report.staffRoster.filter(person => {
-      if (person.staff_id === materialId || day.rem.some(item => item.id === person.staff_id)) return false;
-      if (!(eligibleIds.has(person.staff_id) || person.staff_id === currentId)) return false;
-      const alreadyOnBed = assignedToday.has(person.staff_id);
-      const count = assignedDates.get(person.staff_id)?.size || 0;
-      return (alreadyOnBed || count < Number(person.expected_shifts ?? 0) || person.staff_id === currentId);
-    }).map(person => {
-      const count = assignedDates.get(person.staff_id)?.size || 0;
-      return '<option value="' + escapeHtml(person.staff_id) + '">' + escapeHtml(person.nome) +
-        ' · MASP ' + escapeHtml(person.masp || "—") + ' · meta ' + escapeHtml(person.expected_shifts ?? "—") +
-        ' · plantões ' + count + '</option>';
-    }).join("");
-    staffControl.innerHTML = '<option value="">— Deixar descoberto —</option>' + options;
-    staffControl.value = currentId;
+  const batchDate=$("usi-batch-date"),batchRows=$("usi-batch-rows"),feedback=$("usi-batch-feedback");
+  const addRow=()=>{
+    const day=report.days.find(x=>x.date===batchDate.value);if(!day)return;
+    const row=document.createElement("div");row.className="uti-manual-fields uti-batch-row";
+    row.innerHTML='<label>Leito<select class="batch-post">'+day.assignments.map(x=>'<option value="'+escapeHtml(x.code)+'">'+escapeHtml(x.code)+(x.staff?' · ocupado':' · descoberto')+'</option>').join("")+'</select></label><label>Profissional<select class="batch-staff"></select></label><button type="button" class="secondary-btn batch-remove">Remover</button>';
+    batchRows.appendChild(row);
+    const refresh=()=>{
+      const post=day.assignments.find(x=>x.code===row.querySelector(".batch-post").value);
+      const eligible=new Set((report.availabilitySnapshot.find(x=>x.work_date===day.date)?.markers||[]).filter(x=>x.marker==="X"&&x.status==="available").map(x=>x.staff_id));
+      const assignedToday=new Set(day.assignments.filter(x=>x.staff?.id).map(x=>x.staff.id)); const usedDays=id=>report.days.filter(d=>d.assignments.some(a=>a.staff?.id===id)).length; const options=report.staffRoster.filter(p=>p.staff_id!==day.material?.id&&!day.rem.some(x=>x.id===p.staff_id)&&(eligible.has(p.staff_id)||p.staff_id===post?.staff?.id)&&(assignedToday.has(p.staff_id)||usedDays(p.staff_id)<Number(p.expected_shifts??0)||p.staff_id===post?.staff?.id))
+        .map(p=>'<option value="'+escapeHtml(p.staff_id)+'">'+escapeHtml(p.nome)+' · MASP '+escapeHtml(p.masp||"—")+' · meta '+escapeHtml(p.expected_shifts??"—")+'</option>').join("");
+      const select=row.querySelector(".batch-staff");select.innerHTML='<option value="">— Deixar descoberto —</option>'+options;if(post?.staff?.id)select.value=post.staff.id;
+    };
+    row.querySelector(".batch-post").addEventListener("change",refresh);row.querySelector(".batch-remove").addEventListener("click",()=>row.remove());refresh();
   };
-  const refreshPostOptions = preferred => {
-    const day = report.days.find(item => item.date === dateControl.value);
-    const selected = day?.assignments.find(item => item.code === preferred) ||
-      day?.assignments.find(item => !item.staff) || day?.assignments[0];
-    postControl.innerHTML = (day?.assignments || []).map(item =>
-      '<option value="' + escapeHtml(item.code) + '">' + escapeHtml(item.code) + (item.staff ? ' · ' + escapeHtml(item.staff.nome) : ' · descoberto') + '</option>'
-    ).join("");
-    if (selected) postControl.value = selected.code;
-    refreshStaffOptions();
-  };
-  dateControl.value = editorSelection.date || report.days[0]?.date || "";
-  refreshPostOptions(editorSelection.postCode);
-  dateControl.addEventListener("change", () => refreshPostOptions());
-  postControl.addEventListener("change", refreshStaffOptions);
-  $("usi-manual-apply").addEventListener("click", () => {
-    const day = report.days.find(item => item.date === dateControl.value);
-    const post = day?.assignments.find(item => item.code === postControl.value);
-    if (!day || !post) return;
-    const chosenId = staffControl.value || null;
-    const marker = report.availabilitySnapshot.find(item => item.work_date === day.date)?.markers
-      .find(item => item.staff_id === chosenId);
-    const chosen = chosenId ? report.staffRoster.find(item => item.staff_id === chosenId) : null;
-    if (chosenId && (!chosen || !marker || marker.marker !== "X" || marker.status !== "available")) {
-      feedbackControl.textContent = "Ajuste não aplicado: selecione alguém com X confirmado nesta data.";
-      feedbackControl.className = "module-message error";
-      return;
+  batchDate.value=editorSelection.date||report.days[0]?.date||"";addRow();batchDate.addEventListener("change",()=>{batchRows.innerHTML="";addRow();});$("usi-batch-add").addEventListener("click",addRow);
+  $("usi-batch-apply").addEventListener("click",()=>{
+    const day=report.days.find(x=>x.date===batchDate.value),rows=[...batchRows.querySelectorAll(".uti-batch-row")];
+    const selections=rows.map(row=>({post:day?.assignments.find(x=>x.code===row.querySelector(".batch-post").value),staffId:row.querySelector(".batch-staff").value||null}));
+    const codes=selections.map(x=>x.post?.code);
+    if(!day||!rows.length||selections.some(x=>!x.post)||new Set(codes).size!==codes.length){feedback.textContent="Informe pelo menos um ajuste e escolha leitos diferentes.";feedback.className="module-message error";return;}
+    const byStaff=new Map();selections.forEach(x=>{if(x.staffId){if(!byStaff.has(x.staffId))byStaff.set(x.staffId,[]);byStaff.get(x.staffId).push(x.post);}});
+    for(const [id,posts] of byStaff){
+      const marker=report.availabilitySnapshot.find(x=>x.work_date===day.date)?.markers.find(x=>x.staff_id===id);
+      const existing=day.assignments.filter(x=>x.staff?.id===id&&!codes.includes(x.code));
+      if(!marker||marker.marker!=="X"||marker.status!=="available"){feedback.textContent="Todos os profissionais precisam ter X confirmado na data.";feedback.className="module-message error";return;}
+      if(day.material?.id===id||day.rem.some(x=>x.id===id)){feedback.textContent="Profissional de circulação/material ou REM não pode receber leito.";feedback.className="module-message error";return;}
+      if([...existing,...posts].length>1&&[...existing,...posts].some(x=>x.post_type&&x.post_type!=="bed")){feedback.textContent="Somente leitos podem ser acumulados.";feedback.className="module-message error";return;}
     }
-    if (chosenId && day.material?.id === chosenId) {
-      feedbackControl.textContent = "Ajuste não aplicado: quem está em circulação/material não pode acumular leito neste plantão.";
-      feedbackControl.className = "module-message error";
-      return;
-    }
-    const previousId = post.staff?.id || null;
-    post.staff = chosen ? {id:chosen.staff_id,nome:chosen.nome,masp:chosen.masp} : null;
-    post.assignment_method = chosen ? "manual_override" : "manual_review";
-    if (previousId && previousId !== chosenId) {
-      const previous = report.staffRoster.find(person => person.staff_id === previousId);
-      if (previous && !day.extras.some(person => person.id === previousId)) {
-        day.extras.push({id:previous.staff_id,nome:previous.nome,masp:previous.masp});
-      }
-    }
-    if (chosenId) day.extras = day.extras.filter(person => person.id !== chosenId);
-    day.filled = day.assignments.filter(item => item.staff).length;
-    day.vacant = day.assignments.length - day.filled;
-    day.notes = [...(day.notes || []), "Ajuste manual de cobertura aplicado pelo responsável; conferir restrições individuais antes da aprovação."];
-    renderUsiProposal(report, schedule, unit, shift, {date:day.date,postCode:post.code});
-    proposalMessage("Ajuste manual aplicado somente na prévia. Salve uma nova proposta para revisão quando terminar.", "success");
+    selections.forEach(({post,staffId})=>{const old=post.staff?.id||null,person=staffId?report.staffRoster.find(x=>x.staff_id===staffId):null;post.staff=person?{id:person.staff_id,nome:person.nome,masp:person.masp}:null;post.assignment_method=person?"manual_override":"manual_review";if(old&&old!==staffId){const prev=report.staffRoster.find(x=>x.staff_id===old);if(prev&&!day.extras.some(x=>x.id===old))day.extras.push({id:prev.staff_id,nome:prev.nome,masp:prev.masp});}if(staffId)day.extras=day.extras.filter(x=>x.id!==staffId);});
+    day.filled=day.assignments.filter(x=>x.staff).length;day.vacant=day.assignments.length-day.filled;day.notes=[...(day.notes||[]),selections.length+" ajuste(s) manual(is) aplicados em lote."];
+    renderUsiProposal(report,schedule,unit,shift,{date:day.date,postCode:selections[0].post.code});proposalMessage(selections.length+" ajuste(s) aplicado(s) na prévia. Nada foi publicado.","success");
   });
-  proposalMessage("Simulação da USI concluída em memória. " + totalFilled + " postos diretos preenchidos e " + totalVacant + " descobertos no conjunto dos 31 dias. Nada foi gravado. A prévia pode ser salva para revisão.", "success");
+  proposalMessage("Simulação USI concluída em memória. Nada foi publicado.", "success");
 }
 
 async function loadSavedProposalHistory() {
