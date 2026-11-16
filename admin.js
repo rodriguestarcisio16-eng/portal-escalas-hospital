@@ -734,7 +734,7 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
     days: report.days.map(day => ({
       work_date: day.work_date,
       assignments: day.assignments.map(item => ({
-        post_code: item.post_code, post_name: item.post_name, staff_id: item.staff_id,
+        post_code: item.post_code, post_name: item.post_name, post_type: item.post_type, staff_id: item.staff_id,
         nome: item.nome, masp: item.masp, assignment_method: item.assignment_method
       })),
       extras: day.extras,
@@ -1238,7 +1238,10 @@ function exportProposalPdf(period = "monthly") {
     const day = selectedDays[0];
     const rows = (day.assignments || []).map(item =>
       '<tr><td><b>'+escapeHtml(item.post_code)+'</b><small>'+escapeHtml(item.post_name || 'Assistência direta')+'</small></td>' +
-      '<td>'+(item.staff_id ? escapeHtml(item.nome || "—") : '<span class="not-filled">SEM COBERTURA</span>')+'</td>' +
+      '<td>'+(item.staff_id ? escapeHtml(item.nome || "—") :
+        (unit.code === "UTI_ADULTO" && item.post_type !== "bed"
+          ? '<span class="manual-pending">PENDENTE DE DECISÃO MANUAL</span>'
+          : '<span class="not-filled">SEM COBERTURA</span>'))+'</td>' +
       '<td>'+escapeHtml(item.masp || "—")+'</td></tr>'
     ).join("");
     const materialRow = unit.code === "UTI_ADULTO" ? "" :
