@@ -348,3 +348,20 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
 /* PDF UTI: sinaliza meta positiva sem nenhuma alocação proposta */
 .person-no-allocation .person-cell,.person-no-allocation .number-cell{background:#fff7ed;color:#8a4b16}
 .no-allocation-flag{display:inline-block!important;margin-top:3px!important;color:#9a4d18!important;font-size:5.5px!important;font-weight:700;letter-spacing:.25px}
+
+
+/* Editor de ajustes manuais da prévia UTI */
+.uti-manual-editor{border:1px solid var(--line);border-radius:11px;background:#fff;overflow:hidden}
+.uti-manual-editor>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;list-style:none;background:#f8faf9}
+.uti-manual-editor>summary::-webkit-details-marker{display:none}
+.uti-manual-editor>summary b{display:block;font:800 12px Manrope;color:var(--ink)}
+.uti-manual-editor>summary small{display:block;margin-top:3px;font-size:10px;line-height:1.4;color:var(--muted)}
+.uti-manual-editor[open]>summary{border-bottom:1px solid var(--line)}
+.uti-manual-editor-body{padding:13px}
+.uti-manual-fields{display:grid;grid-template-columns:1fr 1.3fr 1.8fr;gap:9px}
+.uti-manual-fields label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:700;color:#596762}
+.uti-manual-fields select{width:100%;min-width:0;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:11px "DM Sans",sans-serif}
+.uti-manual-warning{padding:9px 10px;margin:10px 0;border:1px solid #eadfbd;border-radius:8px;background:#fcfaf2;color:#78683d;font-size:10px;line-height:1.5}
+.uti-manual-editor-body>button{margin:0}
+.uti-manual-editor-body .module-message{margin-top:8px}
+@media(max-width:650px){.uti-manual-fields{grid-template-columns:1fr}.uti-manual-editor-body>button{width:100%}}
