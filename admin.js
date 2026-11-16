@@ -672,7 +672,7 @@ async function simulateUtiSchedule(unit, shift) {
   renderUtiProposal(report, schedule, unit, shift);
 }
 
-function renderUtiProposal(report, schedule, unit, shift) {
+function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) {
   const totalFilled = report.days.reduce((sum, day) => sum + day.filled, 0);
   const totalVacant = report.days.reduce((sum, day) => sum + day.vacant, 0);
   const totalExtras = report.days.reduce((sum, day) => sum + day.extras.length, 0);
@@ -764,6 +764,18 @@ function renderUtiProposal(report, schedule, unit, shift) {
   $("generate-proposal").textContent = "Salvar para revisão";
   // A prévia UTI já possui dados para os três formatos de documento.
   ["pdf-monthly","pdf-weekly","pdf-daily"].forEach(id => { if ($(id)) $(id).disabled = false; });
+  const manualEditor = '<details class="uti-manual-editor">' +
+    '<summary><span><b>Ajustar distribuição manualmente</b><small>Escolha uma data, um posto e um profissional disponível confirmado (X).</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>' +
+    '<div class="uti-manual-editor-body">' +
+    '<div class="uti-manual-fields">' +
+    '<label>Data<select id="uti-manual-date">' + report.days.map(day => '<option value="' + escapeHtml(day.work_date) + '">' + escapeHtml(new Date(day.work_date + "T12:00:00").toLocaleDateString("pt-BR")) + '</option>').join("") + '</select></label>' +
+    '<label>Posto<select id="uti-manual-post"></select></label>' +
+    '<label>Profissional disponível<select id="uti-manual-staff"><option value="">— Deixar sem indicação —</option></select></label>' +
+    '</div>' +
+    '<p class="uti-manual-warning">A seleção manual registra a decisão do responsável, mas não valida automaticamente rodízio, pares/blocos ou exclusividades. Confira essas regras antes de salvar a proposta.</p>' +
+    '<button id="uti-manual-apply" type="button" class="secondary-btn">Aplicar ajuste na prévia</button>' +
+    '<p id="uti-manual-feedback" class="module-message" role="status"></p>' +
+    '</div></details>';
   $("proposal-preview").innerHTML =
     '<div class="engine-summary-grid">' +
     '<div><strong>' + report.days.length + '</strong><small>dias simulados</small></div>' +
@@ -772,7 +784,96 @@ function renderUtiProposal(report, schedule, unit, shift) {
     '<div><strong>' + totalExtras + '</strong><small>excedentes (somatório diário)</small></div></div>' +
     '<div class="engine-method"><b>Prévia UTI · UTI_PREVIEW_V1</b><p>As alocações seguem as regras nominativas e as restrições cadastradas. Profissionais de 40h sem continuidade inequívoca do rodízio, regras de pares/blocos e postos sem indicação segura ficam destacados para decisão manual. REM aparece separado e não ocupa posto automaticamente.</p><p>Esta prévia não é escala oficial e não foi publicada.</p></div>' +
     warnings + '<div class="uti-preview-summary"><span><b>' + roster.length + '</b> profissionais vinculados</span><span><b>' + report.days.length + '</b> dias exibidos</span><span><b>' + totalAssignments + '</b> alocações propostas</span></div>' +
-    matrix;
+    matrix + manualEditor;
+  const dateControl = $("uti-manual-date");
+  const postControl = $("uti-manual-post");
+  const staffControl = $("uti-manual-staff");
+  const feedbackControl = $("uti-manual-feedback");
+  const refreshStaffOptions = () => {
+    const day = report.days.find(item => item.work_date === dateControl.value);
+    const post = day?.assignments.find(item => item.post_code === postControl.value);
+    if (!day || !post) {
+      staffControl.innerHTML = '<option value="">— Deixar sem indicação —</option>';
+      return;
+    }
+    const currentId = post.staff_id || "";
+    const assignedElsewhere = new Set(day.assignments
+      .filter(item => item.post_code !== post.post_code && item.staff_id)
+      .map(item => item.staff_id));
+    const eligibleIds = new Set(report.availabilitySnapshot
+      .filter(row => row.work_date === day.work_date && row.marker === "X" && row.status === "available" && row.staff_id)
+      .map(row => row.staff_id));
+    const monthlyCounts = new Map();
+    report.days.forEach(item => item.assignments.forEach(assignment => {
+      if (assignment.staff_id) monthlyCounts.set(assignment.staff_id, (monthlyCounts.get(assignment.staff_id) || 0) + 1);
+    }));
+    const options = roster.filter(person =>
+      (eligibleIds.has(person.staff_id) || person.staff_id === currentId) &&
+      (!assignedElsewhere.has(person.staff_id) || person.staff_id === currentId)
+    ).map(person => {
+      const count = monthlyCounts.get(person.staff_id) || 0;
+      return '<option value="' + escapeHtml(person.staff_id) + '">' +
+        escapeHtml(person.nome) + ' · MASP ' + escapeHtml(person.masp || "—") +
+        ' · meta ' + escapeHtml(person.expected_shifts ?? "—") + ' · alocados ' + count + '</option>';
+    }).join("");
+    staffControl.innerHTML = '<option value="">— Deixar sem indicação —</option>' + options;
+    staffControl.value = currentId;
+  };
+  const refreshPostOptions = (preferredPost) => {
+    const day = report.days.find(item => item.work_date === dateControl.value);
+    const selected = day?.assignments.find(item => item.post_code === preferredPost) ||
+      day?.assignments.find(item => !item.staff_id) || day?.assignments[0];
+    postControl.innerHTML = (day?.assignments || []).map(item =>
+      '<option value="' + escapeHtml(item.post_code) + '">' + escapeHtml(item.post_code) +
+      ' · ' + escapeHtml(item.post_name || "Posto") + (item.staff_id ? ' · ' + escapeHtml(item.nome || "ocupado") : ' · sem indicação') +
+      '</option>'
+    ).join("");
+    if (selected) postControl.value = selected.post_code;
+    refreshStaffOptions();
+  };
+  dateControl.value = editorSelection.date || report.days[0]?.work_date || "";
+  refreshPostOptions(editorSelection.postCode);
+  dateControl.addEventListener("change", () => refreshPostOptions());
+  postControl.addEventListener("change", refreshStaffOptions);
+  $("uti-manual-apply").addEventListener("click", () => {
+    const day = report.days.find(item => item.work_date === dateControl.value);
+    const post = day?.assignments.find(item => item.post_code === postControl.value);
+    if (!day || !post) return;
+    const chosenId = staffControl.value || null;
+    const chosen = chosenId ? roster.find(person => person.staff_id === chosenId) : null;
+    const marker = report.availabilitySnapshot.find(row => row.work_date === day.work_date && row.staff_id === chosenId);
+    if (chosenId && (!chosen || !marker || marker.marker !== "X" || marker.status !== "available")) {
+      feedbackControl.textContent = "Ajuste não aplicado: selecione alguém com X confirmado nesta data.";
+      feedbackControl.className = "module-message error";
+      return;
+    }
+    const duplicate = chosenId ? day.assignments.find(item => item.staff_id === chosenId && item.post_code !== post.post_code) : null;
+    if (duplicate) {
+      feedbackControl.textContent = "Ajuste não aplicado: este profissional já está em outro posto nesta data.";
+      feedbackControl.className = "module-message error";
+      return;
+    }
+    const previousId = post.staff_id;
+    post.staff_id = chosen?.staff_id || null;
+    post.nome = chosen?.nome || null;
+    post.masp = chosen?.masp || null;
+    post.assignment_method = chosen ? "manual_override" : "manual_review";
+    if (chosenId) {
+      day.manual_candidates = (day.manual_candidates || []).filter(person => person.staff_id !== chosenId);
+      day.extras = (day.extras || []).filter(person => person.staff_id !== chosenId);
+    }
+    if (previousId && previousId !== chosenId) {
+      const previous = roster.find(person => person.staff_id === previousId);
+      if (previous && !(day.manual_candidates || []).some(person => person.staff_id === previousId)) {
+        day.manual_candidates.push({staff_id:previous.staff_id,nome:previous.nome,masp:previous.masp,reason:"Liberado após ajuste manual; conferir nova destinação"});
+      }
+    }
+    day.filled = day.assignments.filter(item => item.staff_id).length;
+    day.vacant = day.assignments.length - day.filled;
+    day.notes = [...(day.notes || []), "Ajuste manual realizado na prévia pelo responsável; conferir regras operacionais antes da aprovação."];
+    renderUtiProposal(report, schedule, unit, shift, {date:day.work_date,postCode:post.post_code});
+    proposalMessage("Ajuste manual aplicado somente na prévia. Gere novamente os PDFs ou salve a proposta para revisão quando terminar.", "success");
+  });
   proposalMessage("Prévia da UTI gerada em memória. " + totalFilled + " indicações e " + totalVacant + " postos para revisão no conjunto dos " + report.days.length + " dias. Nada foi publicado.", "success");
 }
 
