@@ -956,7 +956,7 @@ function renderUsiProposal(report, schedule, unit, shift, editorSelection = {}) 
     const refresh=()=>{
       const post=day.assignments.find(x=>x.code===row.querySelector(".batch-post").value);
       const eligible=new Set((report.availabilitySnapshot.find(x=>x.work_date===day.date)?.markers||[]).filter(x=>x.marker==="X"&&x.status==="available").map(x=>x.staff_id));
-      const options=report.staffRoster.filter(p=>p.staff_id!==day.material?.id&&!day.rem.some(x=>x.id===p.staff_id)&&(eligible.has(p.staff_id)||p.staff_id===post?.staff?.id))
+      const assignedToday=day.assignments.some(x=>x.staff?.id===p.staff_id); const usedDays=report.days.filter(d=>d.assignments.some(a=>a.staff?.id===p.staff_id)).length; const options=report.staffRoster.filter(p=>p.staff_id!==day.material?.id&&!day.rem.some(x=>x.id===p.staff_id)&&(eligible.has(p.staff_id)||p.staff_id===post?.staff?.id)&&(assignedToday||usedDays<Number(p.expected_shifts??0)||p.staff_id===post?.staff?.id))
         .map(p=>'<option value="'+escapeHtml(p.staff_id)+'">'+escapeHtml(p.nome)+' · MASP '+escapeHtml(p.masp||"—")+' · meta '+escapeHtml(p.expected_shifts??"—")+'</option>').join("");
       const select=row.querySelector(".batch-staff");select.innerHTML='<option value="">— Deixar descoberto —</option>'+options;if(post?.staff?.id)select.value=post.staff.id;
     };
