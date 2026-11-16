@@ -542,7 +542,7 @@ BEGIN
         AND cp.active IS TRUE;
 
       IF NULLIF(v_assignment->>'staff_id','') IS NULL
-         AND (v_unit_code = 'UTI_ADULTO' OR v_post_type = 'bed') THEN
+         AND (v_unit_code = 'UTI_ADULTO' OR v_post_type IS NULL OR v_post_type = 'bed') THEN
         v_uncovered := v_uncovered || jsonb_build_array(jsonb_build_object(
           'work_date', v_work_date,
           'post_code', v_assignment->>'post_code',
