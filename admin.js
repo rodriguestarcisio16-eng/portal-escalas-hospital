@@ -800,18 +800,22 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
     const assignedElsewhere = new Set(day.assignments
       .filter(item => item.post_code !== post.post_code && item.staff_id)
       .map(item => item.staff_id));
-    const canShareBeds = post.post_type === "bed" &&
-      day.assignments.every(item => item.staff_id !== currentId || item.post_type === "bed");
     const eligibleIds = new Set(report.availabilitySnapshot
       .filter(row => row.work_date === day.work_date && row.marker === "X" && row.status === "available" && row.staff_id)
       .map(row => row.staff_id));
-    const monthlyCounts = new Map();
+    const monthlyDates = new Map();
     report.days.forEach(item => item.assignments.forEach(assignment => {
-      if (assignment.staff_id) monthlyCounts.set(assignment.staff_id, (monthlyCounts.get(assignment.staff_id) || 0) + 1);
+      if (!assignment.staff_id) return;
+      if (!monthlyDates.has(assignment.staff_id)) monthlyDates.set(assignment.staff_id, new Set());
+      monthlyDates.get(assignment.staff_id).add(item.work_date);
     }));
+    const monthlyCounts = new Map([...monthlyDates].map(([staffId, dates]) => [staffId, dates.size]));
     const options = roster.filter(person =>
       (eligibleIds.has(person.staff_id) || person.staff_id === currentId) &&
-      (!assignedElsewhere.has(person.staff_id) || person.staff_id === currentId || canShareBeds)
+      (!assignedElsewhere.has(person.staff_id) || person.staff_id === currentId ||
+        (post.post_type === "bed" && day.assignments
+          .filter(item => item.staff_id === person.staff_id && item.post_code !== post.post_code)
+          .every(item => item.post_type === "bed")))
     ).map(person => {
       const count = monthlyCounts.get(person.staff_id) || 0;
       return '<option value="' + escapeHtml(person.staff_id) + '">' +
