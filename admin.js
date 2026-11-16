@@ -788,8 +788,11 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
       const post=day.assignments.find(x=>x.post_code===row.querySelector(".batch-post").value);
       const used=new Set([...batchRows.querySelectorAll(".uti-batch-row")].filter(x=>x!==row).map(x=>x.querySelector(".batch-staff").value).filter(Boolean));
       const eligible=new Set(report.availabilitySnapshot.filter(x=>x.work_date===day.work_date&&x.marker==="X"&&x.status==="available").map(x=>x.staff_id));
+      const assignedToday=new Set(day.assignments.filter(x=>x.staff_id).map(x=>x.staff_id));
+      const usedDays=id=>report.days.filter(d=>d.assignments.some(x=>x.staff_id===id)).length;
       const opts=roster.filter(p=>{
         if(!eligible.has(p.staff_id)&&p.staff_id!==post?.staff_id)return false;
+        if(!assignedToday.has(p.staff_id)&&usedDays(p.staff_id)>=Number(p.expected_shifts??0))return false;
         if(!used.has(p.staff_id))return true;
         const other=[...batchRows.querySelectorAll(".uti-batch-row")].filter(x=>x!==row&&x.querySelector(".batch-staff").value===p.staff_id).map(x=>day.assignments.find(a=>a.post_code===x.querySelector(".batch-post").value));
         return post?.post_type==="bed"&&other.every(x=>x?.post_type==="bed");
