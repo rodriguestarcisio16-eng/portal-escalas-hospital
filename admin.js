@@ -847,7 +847,7 @@ function renderUtiProposal(report, schedule, unit, shift, editorSelection = {}) 
       feedbackControl.className = "module-message error";
       return;
     }
-    const duplicate = day.assignments.find(item => item.staff_id === chosenId && item.post_code !== post.post_code);
+    const duplicate = chosenId ? day.assignments.find(item => item.staff_id === chosenId && item.post_code !== post.post_code) : null;
     if (duplicate) {
       feedbackControl.textContent = "Ajuste não aplicado: este profissional já está em outro posto nesta data.";
       feedbackControl.className = "module-message error";
