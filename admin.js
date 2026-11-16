@@ -100,22 +100,27 @@ function renderSkeleton() {
         </div>
       </section>
 
-      <section class="module-panel">
-        <div class="panel-heading">
+      <details id="availability-details" class="module-panel collapsible-panel">
+        <summary class="panel-heading collapsible-heading">
           <div>
             <h4>Disponibilidade diária</h4>
             <p id="availability-subtitle">Aguardando seleção.</p>
           </div>
-          <span id="schedule-status" class="status-chip neutral">—</span>
+          <span class="collapsible-summary-side">
+            <span id="schedule-status" class="status-chip neutral">—</span>
+            <span class="collapse-indicator" aria-hidden="true"></span>
+          </span>
+        </summary>
+        <div class="collapsible-content">
+          <div class="table-scroll">
+            <table class="roster-table">
+              <thead><tr><th>Profissional</th><th>MASP</th><th>Categoria de origem</th><th>Carga na competência</th><th>Plantões previstos</th><th>Situação no dia</th></tr></thead>
+              <tbody id="availability-body"><tr><td colspan="6" class="empty-cell">Carregando dados...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="table-foot" id="roster-foot"></div>
         </div>
-        <div class="table-scroll">
-          <table class="roster-table">
-            <thead><tr><th>Profissional</th><th>MASP</th><th>Categoria de origem</th><th>Carga na competência</th><th>Plantões previstos</th><th>Situação no dia</th></tr></thead>
-            <tbody id="availability-body"><tr><td colspan="6" class="empty-cell">Carregando dados...</td></tr></tbody>
-          </table>
-        </div>
-        <div class="table-foot" id="roster-foot"></div>
-      </section>
+      </details>
 
       <div class="module-two-columns">
         <section class="module-panel compact-panel">
