@@ -61,14 +61,16 @@ function renderManagementShell() {
       </div>
       <p id="staff-manager-message" class="module-message" role="status"></p>
       <div class="staff-manager-layout">
-        <aside class="staff-directory">
-          <div class="staff-directory-head">
-            <h5>Profissionais cadastrados</h5>
-            <span id="staff-directory-count" class="status-chip neutral">—</span>
+        <details class="staff-directory staff-collapsible">
+          <summary class="staff-disclosure-summary">
+            <span><h5>Profissionais cadastrados</h5><small>Buscar e selecionar um cadastro existente</small></span>
+            <span class="staff-disclosure-side"><span id="staff-directory-count" class="status-chip neutral">—</span><span class="collapse-indicator" aria-hidden="true"></span></span>
+          </summary>
+          <div class="staff-directory-content">
+            <input id="staff-search" type="search" placeholder="Buscar por nome ou MASP" aria-label="Buscar profissional" />
+            <div id="staff-directory-list" class="staff-directory-list"><p class="muted">Carregando cadastro...</p></div>
           </div>
-          <input id="staff-search" type="search" placeholder="Buscar por nome ou MASP" aria-label="Buscar profissional" />
-          <div id="staff-directory-list" class="staff-directory-list"><p class="muted">Carregando cadastro...</p></div>
-        </aside>
+        </details>
         <section class="staff-editor">
           <div class="staff-editor-head">
             <div><h5 id="staff-editor-title">Novo profissional</h5><p>Preencha os dados funcionais e selecione os vínculos ativos.</p></div>
@@ -76,15 +78,19 @@ function renderManagementShell() {
           </div>
           <form id="staff-management-form">
             <input id="staff-id" type="hidden" />
-            <div class="staff-form-grid staff-form-grid-three">
+            <details class="staff-form-section staff-form-disclosure" open>
+              <summary class="staff-disclosure-summary"><span><h6>Dados funcionais</h6><small>Identificação, categoria e carga contratual</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>
+              <div class="staff-form-grid staff-form-grid-three">
               <div class="field-group"><label for="staff-masp">MASP *</label><input id="staff-masp" inputmode="numeric" maxlength="20" placeholder="Somente números" required /></div>
               <div class="field-group staff-span-two"><label for="staff-name">Nome completo *</label><input id="staff-name" maxlength="180" required placeholder="Nome do profissional" /></div>
               <div class="field-group"><label for="staff-category">Categoria *</label><input id="staff-category" list="staff-category-options" maxlength="30" required placeholder="TE, TEC, AUX..." /><datalist id="staff-category-options"><option value="TE"><option value="TEC"><option value="AUX"><option value="AUX."></datalist></div>
               <div class="field-group"><label for="staff-weekly-hours">Carga contratual semanal</label><select id="staff-weekly-hours"><option value="">Não informada</option><option value="20">20 horas</option><option value="30">30 horas</option><option value="40">40 horas</option></select></div>
               <div class="field-group staff-check-field"><label><input id="staff-contract-marker" type="checkbox" /> Marcador CA</label><label><input id="staff-active" type="checkbox" checked /> Cadastro ativo</label></div>
-            </div>
-            <div class="staff-form-section">
-              <div class="staff-form-section-head"><h6>Vínculos de unidade e turno</h6><small>Marque cada combinação em que o profissional pode integrar a equipe.</small></div>
+              </div>
+            </details>
+            <details class="staff-form-section staff-form-disclosure">
+              <summary class="staff-disclosure-summary"><span><h6>Vínculos de unidade e turno</h6><small>Unidades e turnos em que o profissional pode atuar</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>
+              <div class="staff-form-section-head"><small>Marque cada combinação em que o profissional pode integrar a equipe.</small></div><small>Marque cada combinação em que o profissional pode integrar a equipe.</small></div>
               <div class="staff-assignment-grid">
                 ${["UTI_ADULTO", "USI_ADULTO"].map((unitCode) => {
                   const unit = reference.units.find((x) => x.code === unitCode);
@@ -94,9 +100,10 @@ function renderManagementShell() {
                   }).join("")}</div>`;
                 }).join("")}
               </div>
-            </div>
-            <div class="staff-form-section">
-              <div class="staff-form-section-head"><h6>Escala mensal e disponibilidade</h6><small>Escolha a competência e o turno. O calendário é preenchido manualmente.</small></div>
+            </details>
+            <details class="staff-form-section staff-form-disclosure">
+              <summary class="staff-disclosure-summary"><span><h6>Escala mensal e disponibilidade</h6><small>Meta, afastamentos por período e calendário diário</small></span><span class="collapse-indicator" aria-hidden="true"></span></summary>
+              <div class="staff-form-section-head"><small>Escolha a competência e o turno. O calendário é preenchido manualmente.</small></div><small>Escolha a competência e o turno. O calendário é preenchido manualmente.</small></div>
               <div class="staff-form-grid staff-form-grid-three">
                 <div class="field-group"><label for="staff-schedule">Competência / unidade / turno</label><select id="staff-schedule"></select></div>
                 <div class="field-group"><label for="staff-competence-hours">Horas registradas na competência</label><input id="staff-competence-hours" type="number" min="0" max="200" step="1" placeholder="Ex.: 31" /></div>
@@ -138,7 +145,7 @@ function renderManagementShell() {
               </div>
               <div id="staff-calendar" class="staff-calendar"><p class="muted">Selecione uma competência para abrir o calendário.</p></div>
               <div class="staff-marker-legend"><b>Marcações:</b> X = disponível · FO = folga · FR = férias · LM = licença médica · LMA = licença maternidade · APA = afastamento preliminar · REM = remanejamento manual · TP/REV = revisão. Períodos aplicados são gravados ao salvar as alterações.</div>
-            </div>
+            </details>
             <div class="staff-form-actions">
               <button id="staff-reset" type="button" class="secondary-btn">Limpar formulário</button>
               <button id="staff-save" type="submit" class="primary-btn compact-btn">Salvar cadastro</button>
