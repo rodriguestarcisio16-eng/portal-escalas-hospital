@@ -344,3 +344,7 @@ form{display:flex;flex-direction:column}label{font-size:12px;font-weight:700;mar
  .staff-form-disclosure>.staff-period-panel,.staff-form-disclosure>.staff-calendar,
  .staff-form-disclosure>.staff-marker-legend{margin-left:9px;margin-right:9px}
 }
+
+/* PDF UTI: sinaliza meta positiva sem nenhuma alocação proposta */
+.person-no-allocation .person-cell,.person-no-allocation .number-cell{background:#fff7ed;color:#8a4b16}
+.no-allocation-flag{display:inline-block!important;margin-top:3px!important;color:#9a4d18!important;font-size:5.5px!important;font-weight:700;letter-spacing:.25px}
