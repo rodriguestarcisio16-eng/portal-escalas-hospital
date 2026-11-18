@@ -71,7 +71,7 @@ function renderSkeleton() {
           </div>
           <div class="field-group">
             <label for="schedule-month">Mês da escala</label>
-            <input id="schedule-month" type="month" min="${monthStart.slice(0,7)}" value="${monthStart.slice(0,7)}" />
+            <select id="schedule-month"><option value="">Carregando competências...</option></select>
           </div>
           <div class="field-group">
             <label for="schedule-date">Dia da escala</label>
@@ -174,8 +174,9 @@ function renderSkeleton() {
   $("pdf-daily").addEventListener("click", () => exportProposalPdf("daily"));
   $("schedule-date").addEventListener("change", () => { $("pdf-day-date").value = $("schedule-date").value; });
   $("schedule-month").addEventListener("change", async () => {
-    const chosen=$("schedule-month").value, minimum=currentMonthStart().slice(0,7);
-    if(!chosen || chosen<minimum){$("schedule-month").value=monthStart.slice(0,7);message("Só é possível confeccionar escalas a partir do mês atual.","error");return;}
+    const chosen=$("schedule-month").value;
+    if(!chosen){message("Não há competência cadastrada para selecionar.","error");return;}
+    if(chosen<currentMonthStart().slice(0,7)){message("Só é possível confeccionar escalas a partir do mês atual.","error");return;}
     monthStart=chosen+"-01"; monthEnd=monthEndFor(monthStart);
     const label=new Date(monthStart+"T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).toUpperCase();
     $("competence-pill").textContent="COMPETÊNCIA "+label+" · RASCUNHO";
@@ -457,6 +458,33 @@ async function loadReferenceData() {
     shifts: shiftsResult.data ?? [],
     schedules: schedulesResult.data ?? [],
   };
+
+  const availableCompetences = [...new Set(reference.schedules
+    .map(item => String(item.competence).slice(0,7))
+    .filter(value => value >= currentMonthStart().slice(0,7)))]
+    .sort();
+  if (!availableCompetences.length) {
+    throw new Error("Não há competências cadastradas a partir do mês atual. Cadastre a escala mensal no sistema antes de consultar disponibilidades.");
+  }
+  monthStart = availableCompetences[0] + "-01";
+  monthEnd = monthEndFor(monthStart);
+  $("schedule-month").innerHTML = availableCompetences.map(value => {
+    const label = new Date(value + "-01T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
+    return `<option value="${value}">${label.charAt(0).toUpperCase()+label.slice(1)}</option>`;
+  }).join("");
+  $("schedule-month").value = monthStart.slice(0,7);
+  $("schedule-date").min = monthStart;
+  $("schedule-date").max = monthEnd;
+  $("schedule-date").value = monthStart;
+  $("pdf-week-start").min = monthStart;
+  $("pdf-week-start").max = monthEnd;
+  $("pdf-week-start").value = monthStart;
+  $("pdf-day-date").min = monthStart;
+  $("pdf-day-date").max = monthEnd;
+  $("pdf-day-date").value = monthStart;
+  $("competence-pill").textContent = "COMPETÊNCIA " +
+    new Date(monthStart + "T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).toUpperCase() +
+    " · RASCUNHO";
 
   $("schedule-unit").innerHTML = reference.units.map((unit) =>
     `<option value="${escapeHtml(unit.id)}">${escapeHtml(unit.name)}</option>`).join("");
